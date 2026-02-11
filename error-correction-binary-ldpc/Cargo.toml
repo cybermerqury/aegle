@@ -1,0 +1,11 @@
+[package]
+name = "ec_binary_ldpc"
+version = "1.0.0"
+edition = "2021"
+
+[dependencies]
+bitvec = { version = "1.0.1", features = ["std"] }
+core = { path = "../core/" }
+
+[dev-dependencies]
+tempfile = "3.13.0"

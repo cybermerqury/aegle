@@ -1,0 +1,25 @@
+[package]
+name = "aegle"
+version = "1.0.0"
+edition = "2021"
+
+[dependencies]
+p12-keystore = "=0.1.2"
+quinn-proto = { version = "0.10.6", features = ["rustls"] }
+statrs = "0.16.0"
+core = { path = "../core/" }
+error_correction = { path = "../error-correction-cascade", package = "ec_cascade" }
+tracing-appender = "0.2.3"
+bincode = "1.3.3"
+bitvec = { version = "1.0.1", features = ["serde", "std"] }
+clap = { version = "4.5.4", features = ["derive", "wrap_help"] }
+quinn = { version = "0.11.5", features = ["rustls"] }
+rand = "0.8.5"
+rustls = { version = "0.23.0" }
+rustls-pemfile = "2.0.0"
+serde = { version = "1.0.198", features = ["derive"] }
+tokio = { version = "1.37.0", features = ["full"] }
+toml = "0.8.12"
+tracing = "0.1.40"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter", "json"] }
+uuid = { version = "1.8.0", features = ["v4", "serde"] }

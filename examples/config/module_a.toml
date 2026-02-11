@@ -1,0 +1,21 @@
+[module]
+uuid               = "00000000-0000-0000-0000-00000000000a"
+error_correction   = ['Cascade', 'LDPC']
+peer_addr          = "127.0.0.1:8213"
+qkd_addr           = "127.0.0.1:9213"
+root_cert          = "./certs/root.pem"
+module_cert        = "./certs/module.pem"
+logfile            = "module_a.json"
+logfile_level      = "trace"
+stdout_level       = "ppaas_module=warn"
+
+
+[[peers]]
+uuid = "00000000-0000-0000-0000-00000000000b"
+addr = '127.0.0.2:9000'
+[[peers.qkd]]
+local = "00000000-0000-0000-0000-0000000000ab"
+remote = "00000000-0000-0000-0000-0000000000ba"
+[[peers.qkd]]
+local = "00000000-0000-0000-0000-0000000000af"
+remote = "00000000-0000-0000-0000-0000000000fa"

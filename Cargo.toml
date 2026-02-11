@@ -1,0 +1,12 @@
+[workspace]
+resolver = "3"
+
+members = [
+    "app",
+    "benchmark",
+    "core",
+    "emulator",
+    "error-correction-binary-ldpc",
+    "error-correction-cascade",
+    "error-correction-nonbinary-ldpc",
+]

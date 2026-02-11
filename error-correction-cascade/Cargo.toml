@@ -1,0 +1,9 @@
+[package]
+name = "ec_cascade"
+version = "1.0.0"
+edition = "2021"
+
+[dependencies]
+bitvec = { version = "1.0.1", features = ["serde", "std"] }
+core = { path = "../core/" }
+rand = "0.8.5"
