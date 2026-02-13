@@ -1,8 +1,7 @@
 use serde::{Deserialize, Serialize};
-// use std::error::Error;
 use std::env::VarError;
 use std::fmt;
-use std::fmt::{Debug, Display};
+use std::fmt::Debug;
 use std::result;
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone, Copy)]
@@ -152,5 +151,3 @@ impl<T> From<std::sync::PoisonError<T>> for Error {
         }
     }
 }
-
-// TODO: Add tests

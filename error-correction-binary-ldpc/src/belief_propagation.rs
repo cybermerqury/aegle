@@ -17,7 +17,7 @@ pub enum BPResult {
 }
 
 impl BPResult {
-    pub fn get_estimate(&self) -> Cow<BitVec> {
+    pub fn get_estimate(&self) -> Cow<'_, BitVec> {
         match self {
             Self::Converged { estimate, .. } => Cow::Borrowed(estimate),
             Self::Failed { llr, .. } => Cow::Owned(llr.iter().map(|x| x < &0.0).collect()),

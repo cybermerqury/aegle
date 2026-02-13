@@ -2,14 +2,9 @@ use rustls::{
     pki_types::{CertificateDer, PrivatePkcs8KeyDer},
     RootCertStore,
 };
-
 use rustls_pemfile::Item;
 use std::path::Path;
-use std::{
-    fs,
-    io::{BufReader, Read},
-};
-
+use std::{fs, io::BufReader};
 use tracing::{debug, warn};
 
 use crate::error::{Error, ErrorKind, Result};
@@ -70,8 +65,4 @@ pub fn load_root_certificate_store(pem_file_location: &Path) -> Result<RootCertS
     }
 
     Ok(roots)
-}
-
-fn load_ca_certificate(ca_certificate_path: &Path) -> Result<String> {
-    Ok(fs::read_to_string(ca_certificate_path)?)
 }

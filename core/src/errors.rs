@@ -1,8 +1,4 @@
 // SPDX-FileCopyrightText: © 2024 Merqury Cybersecurity Ltd <info@merqury.eu>
-use serde::{Deserialize, Serialize};
-// use std::error::Error;
-use std::env::VarError;
-use std::fmt;
 use std::fmt::{Debug, Display};
 use std::result;
 
