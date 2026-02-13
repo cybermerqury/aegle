@@ -1,0 +1,12 @@
+[[links]]
+length     = 100
+error_rate = 0.001
+root_cert = "./certificates/root.pem"
+client_cert = "./certificates/module.pem"
+frequency = "10s"
+[[links.modules]]
+uuid = "00000000-0000-0000-0000-0000000000ab"
+addr = "127.0.0.1:9213"
+[[links.modules]]
+uuid = "00000000-0000-0000-0000-0000000000ba"
+addr = "127.0.0.2:9100"
