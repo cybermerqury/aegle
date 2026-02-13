@@ -1,6 +1,5 @@
 // SPDX-FileCopyrightText: © 2024 Merqury Cybersecurity Ltd <info@merqury.eu>
 pub mod error;
-pub mod errors;
 pub mod fs;
 pub mod key_state_machine;
 pub mod models;
