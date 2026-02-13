@@ -4,12 +4,8 @@ mod config;
 mod errors;
 mod models;
 mod subsystems;
-
-// TODO: Continue by adding the load toml config to the project's core.
-
 use clap::Parser;
 use cli::CliArgs;
-
 use config::ModuleConfig;
 use tracing::{error, info};
 use tracing_subscriber::prelude::*;
