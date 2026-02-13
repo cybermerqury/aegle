@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 bitvec = { workspace = true }
-core = { path = "../core/" }
+core = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

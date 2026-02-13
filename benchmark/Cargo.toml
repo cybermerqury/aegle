@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 bitvec = { workspace = true }
 clap = { workspace = true }
-core = { path = "../core/" }
+core = { workspace = true }
 error_correction = { path = "../error-correction-cascade/", package="ec_cascade"}
 rand = { workspace = true }
 rayon = { workspace = true }
