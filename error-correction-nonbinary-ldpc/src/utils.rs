@@ -1,5 +1,5 @@
-// SPDX-FileCopyrightText: © 2025 Merqury Cybersecurity Ltd <info@merqury.eu>
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText:  © 2024 - 2026 Merqury Cybersecurity Ltd <info@merqury.eu>
 
 //! Utilities to interact with I/O and Error types.
 

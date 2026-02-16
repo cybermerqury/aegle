@@ -1,5 +1,5 @@
-// SPDX-FileCopyrightText: © 2025 Merqury Cybersecurity Ltd <info@merqury.eu>
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText:  © 2024 - 2026 Merqury Cybersecurity Ltd <info@merqury.eu>
 
 //! Here we define the decoding/error correction functionality over non binary fields.
 
@@ -402,7 +402,8 @@ mod tests {
         let mut temp_file =
             tempfile::NamedTempFile::new().expect("Error creating a temporary file");
         write!(temp_file, "{}", NB_LDPC_ALIST).expect("Error writing ldpc code to file");
-        let (field, factors) = crate::utils::read_alist_file(temp_file).expect("Error parsing file");
+        let (field, factors) =
+            crate::utils::read_alist_file(temp_file).expect("Error parsing file");
 
         let mut decoder = Decoder::new(field.clone(), 100);
         let x = vec![

@@ -1,4 +1,6 @@
-mod key_processing;
+// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText:  © 2024 - 2026 Merqury Cybersecurity Ltd <info@merqury.eu>
+
 mod peer_communication;
 mod qkd_communication;
 mod role;

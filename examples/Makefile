@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+# SPDX-FileCopyrightText:  © 2024 - 2026 Merqury Cybersecurity Ltd <info@merqury.eu>
+
 .SILENT:
 .PHONY: run_aegle_alice run_aegle_bob run_link_emulator certificates clean_logs clean
 

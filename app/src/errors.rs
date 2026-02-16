@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText:  © 2024 - 2026 Merqury Cybersecurity Ltd <info@merqury.eu>
+
 use std::error::Error;
 use std::fmt::{Debug, Display};
 
@@ -50,26 +53,27 @@ where
 }
 
 pub struct ErrorMessage<S>(pub S)
-where S: AsRef<str> + Debug + Display;
+where
+    S: AsRef<str> + Debug + Display;
 
 impl<S> Debug for ErrorMessage<S>
-where S: Display + Debug + AsRef<str>
+where
+    S: Display + Debug + AsRef<str>,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
     }
 }
 impl<S> Display for ErrorMessage<S>
-where S: AsRef<str> + Debug + Display
+where
+    S: AsRef<str> + Debug + Display,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "{}", self.0)
     }
 }
 
-impl<S> Error for ErrorMessage<S>
-where S: AsRef<str> + Debug + Display
-{}
+impl<S> Error for ErrorMessage<S> where S: AsRef<str> + Debug + Display {}
 
 impl<E> Debug for MainErrorStruct<E>
 where

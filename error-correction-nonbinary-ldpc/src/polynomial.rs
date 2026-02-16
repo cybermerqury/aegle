@@ -1,5 +1,5 @@
-// SPDX-FileCopyrightText: © 2025 Merqury Cybersecurity Ltd <info@merqury.eu>
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText:  © 2024 - 2026 Merqury Cybersecurity Ltd <info@merqury.eu>
 
 //! A non binary LDPC code requires arirthmetic in a finite field.
 //! Finite fields are themselves represented by quotient fields of polynomials
@@ -10,7 +10,6 @@ use std::collections::BTreeMap;
 use std::fmt::Display;
 
 use crate::utils::prime_factorization;
-
 
 /// Coefficients of a polynomial are represented by a BTreeMap allowing for sparse
 /// representations.
@@ -44,7 +43,6 @@ pub fn is_irreducible(p: &Polynomial) -> bool {
     }
     true
 }
-
 
 /// The struct that represents a polynomial whose coefficients lie in $Z_p$
 /// The arithmetic operations return an `Option<Polynomial>` rather than a `Polynomial` since two
@@ -85,8 +83,6 @@ impl Polynomial {
     pub fn degree(&self) -> u32 {
         self.lead_term().0
     }
-
-
 
     /// recursively calculates the exponent of a polynomial by using the exponential relationship
     /// $$
@@ -144,12 +140,10 @@ impl Polynomial {
 }
 
 pub trait PolyAdd<Rhs> {
-
     fn add(self, rhs: Rhs) -> Option<Polynomial>;
 }
 
 impl<'a> PolyAdd<&'a Polynomial> for &'a Polynomial {
-
     fn add(self, rhs: &Polynomial) -> Option<Polynomial> {
         if self.base_prime != rhs.base_prime {
             return None;
@@ -164,9 +158,7 @@ impl<'a> PolyAdd<&'a Polynomial> for &'a Polynomial {
     }
 }
 
-
-impl<'a> PolyAdd<&'a Polynomial> for Option<Polynomial>
-{
+impl<'a> PolyAdd<&'a Polynomial> for Option<Polynomial> {
     fn add(self, rhs: &Polynomial) -> Option<Polynomial> {
         self.as_ref().as_ref()?.add(rhs)
     }
@@ -176,8 +168,7 @@ pub trait PolySub<Rhs> {
     fn sub(self, other: Rhs) -> Option<Polynomial>;
 }
 
-impl<'a> PolySub<&'a Polynomial> for &'a Polynomial
-{
+impl<'a> PolySub<&'a Polynomial> for &'a Polynomial {
     fn sub(self, rhs: &'a Polynomial) -> Option<Polynomial> {
         if self.base_prime != rhs.base_prime {
             return None;
@@ -192,8 +183,7 @@ impl<'a> PolySub<&'a Polynomial> for &'a Polynomial
     }
 }
 
-impl<'a> PolySub<&'a Polynomial> for Option<Polynomial>
-{
+impl<'a> PolySub<&'a Polynomial> for Option<Polynomial> {
     fn sub(self, rhs: &Polynomial) -> Option<Polynomial> {
         self.as_ref().as_ref()?.sub(rhs)
     }
@@ -225,8 +215,7 @@ impl<'a> PolyMul<&'a Polynomial> for &'a Polynomial {
     }
 }
 
-impl<'a> PolyMul<&'a Polynomial> for Option<Polynomial>
-{
+impl<'a> PolyMul<&'a Polynomial> for Option<Polynomial> {
     fn mul(self, rhs: &Polynomial) -> Option<Polynomial> {
         self.as_ref().as_ref()?.mul(rhs)
     }
@@ -253,7 +242,6 @@ impl Display for Polynomial {
         Ok(())
     }
 }
-
 
 /// Returns the greatest common divisor of two polynomials $a$ and $b$. The GCD is in general not
 /// unique, but we return the unique GCD that is monic.
@@ -346,11 +334,7 @@ mod tests {
             coeffs: [(0, 2), (1, 1), (2, 2), (4, 1)].into(),
         };
         let pow = p1.pow(5);
-        let mul = p1
-            .mul(&p1)
-            .mul(&p1)
-            .mul(&p1)
-            .mul(&p1);
+        let mul = p1.mul(&p1).mul(&p1).mul(&p1).mul(&p1);
         assert_eq!(Some(pow), mul);
     }
 
@@ -363,7 +347,7 @@ mod tests {
                 BTreeMap::from_iter(coeffs1.iter().enumerate().map(|(i, x)| (i as u32, x % 7))),
             );
             if p1.is_zero() {
-                continue
+                continue;
             }
             let coeffs2: [u32; 5] = random();
             let p2 = Polynomial::new(
@@ -371,7 +355,7 @@ mod tests {
                 BTreeMap::from_iter(coeffs2.iter().enumerate().map(|(i, x)| (i as u32, x % 7))),
             );
             if p2.is_zero() {
-                continue
+                continue;
             }
             let p = poly_gcd(&p2, &p1);
             let (_, r1) = p1.divmod(&p).unwrap();
@@ -380,5 +364,4 @@ mod tests {
             assert!(r2.is_zero());
         }
     }
-
 }

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText:  © 2024 - 2026 Merqury Cybersecurity Ltd <info@merqury.eu>
+
 pub mod ber_estimation;
 pub mod privacy_amplification;
 pub mod update_qkd;

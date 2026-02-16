@@ -1,5 +1,5 @@
-// SPDX-FileCopyrightText: © 2025 Merqury Cybersecurity Ltd <info@merqury.eu>
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText:  © 2024 - 2026 Merqury Cybersecurity Ltd <info@merqury.eu>
 
 //! Any finite field, or Galois field (GF) has order $p^n$ for some prime $p$ and integer
 //! $n>0$. In addition to this, a Galois Field of order $p^n$ is isomorphic to the quotient field
@@ -12,7 +12,7 @@ use std::borrow::Borrow;
 use std::ops::{Add, AddAssign, Mul, Sub};
 use std::{collections::BTreeMap, error::Error, fmt::Display, ops::Deref, sync::Arc};
 
-use crate::polynomial::{is_irreducible, Polynomial, PolyAdd, PolySub, PolyMul};
+use crate::polynomial::{is_irreducible, PolyAdd, PolyMul, PolySub, Polynomial};
 use crate::utils::find_irreducible;
 
 /// This struct serves as a way to store all the information that uniquely defines a finite field.
@@ -99,7 +99,6 @@ impl FieldElement {
         &self.field
     }
 
-
     pub fn sub(&self, other: &Self) -> Self {
         if self.field() != other.field() {
             panic!("Cannot perform arithmetic on different fields")
@@ -180,7 +179,9 @@ impl GF {
     }
 
     pub fn with_size(p: u32, n: u32) -> Self {
-        let poly = find_irreducible(p, n as usize).next().expect("At least one irreducible polynomial");
+        let poly = find_irreducible(p, n as usize)
+            .next()
+            .expect("At least one irreducible polynomial");
         GF::from_poly(poly).expect("Aleady found irreducible polynomial")
     }
 
@@ -248,7 +249,8 @@ impl Display for GF {
 }
 
 impl<'a, Rhs> Add<Rhs> for &'a FieldElement
-where Rhs: Borrow<FieldElement>
+where
+    Rhs: Borrow<FieldElement>,
 {
     type Output = FieldElement;
     fn add(self, rhs: Rhs) -> Self::Output {
@@ -261,7 +263,8 @@ where Rhs: Borrow<FieldElement>
 }
 
 impl<Rhs> Add<Rhs> for FieldElement
-where Rhs: Borrow<FieldElement>
+where
+    Rhs: Borrow<FieldElement>,
 {
     type Output = FieldElement;
     fn add(self, rhs: Rhs) -> Self::Output {
@@ -270,7 +273,8 @@ where Rhs: Borrow<FieldElement>
 }
 
 impl<Rhs> AddAssign<Rhs> for FieldElement
-where Rhs: Borrow<FieldElement>
+where
+    Rhs: Borrow<FieldElement>,
 {
     fn add_assign(&mut self, rhs: Rhs) {
         let rhs = rhs.borrow();
@@ -282,7 +286,8 @@ where Rhs: Borrow<FieldElement>
 }
 
 impl<'a, Rhs> Mul<Rhs> for &'a FieldElement
-where Rhs: Borrow<FieldElement>
+where
+    Rhs: Borrow<FieldElement>,
 {
     type Output = FieldElement;
     fn mul(self, rhs: Rhs) -> Self::Output {
@@ -295,7 +300,8 @@ where Rhs: Borrow<FieldElement>
 }
 
 impl<Rhs> Mul<Rhs> for FieldElement
-where Rhs: Borrow<FieldElement>
+where
+    Rhs: Borrow<FieldElement>,
 {
     type Output = FieldElement;
     fn mul(self, rhs: Rhs) -> Self::Output {
@@ -304,7 +310,8 @@ where Rhs: Borrow<FieldElement>
 }
 
 impl<'a, Rhs> Sub<Rhs> for &'a FieldElement
-where Rhs: Borrow<FieldElement>
+where
+    Rhs: Borrow<FieldElement>,
 {
     type Output = FieldElement;
     fn sub(self, rhs: Rhs) -> Self::Output {
@@ -315,7 +322,6 @@ where Rhs: Borrow<FieldElement>
         FieldElement::from_poly(self.poly.sub(&rhs.poly).unwrap(), self.field.clone())
     }
 }
-
 
 #[cfg(test)]
 mod tests {
