@@ -329,7 +329,7 @@ fn set_block_parities(blocks: &[CascadeNode], parities: &[bool]) {
 mod tests {
     use super::*;
 
-    use ppaas_core::models::{DeviceId, KeyId};
+    use core::models::{DeviceId, KeyId};
 
     fn create_key(len: usize, error_rate: f64) -> (Key<Reconciling>, Key<Reconciling>) {
         let mut b1 = BitVec::new();

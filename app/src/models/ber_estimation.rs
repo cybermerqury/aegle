@@ -186,8 +186,8 @@ mod tests {
     use bitvec::vec::BitVec;
     use rand::Rng;
 
-    use ppaas_core::key_state_machine::{Key, Reconciling};
-    use ppaas_core::models::{DeviceId, KeyId};
+    use core::key_state_machine::{Key, Reconciling};
+    use core::models::{DeviceId, KeyId};
 
     use super::*;
 

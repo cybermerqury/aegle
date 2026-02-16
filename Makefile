@@ -7,6 +7,9 @@
 build:
 	cargo build
 
+build-tests:
+	cargo test --no-run
+
 docs:
 	RUSTDOCFLAGS="--html-in-header katex-header.html" cargo doc --no-deps --workspace
 
