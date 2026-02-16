@@ -13,6 +13,7 @@ use crate::errors::{EmulatorResult, ErrorMessage};
 
 #[derive(Deserialize, Debug)]
 pub struct Config {
+    pub log_level: String,
     pub links: Vec<Link>,
 }
 

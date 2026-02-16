@@ -16,6 +16,7 @@ use std::path::Path;
 use std::str::FromStr;
 use std::time::Duration;
 use tracing::{debug, error, info, instrument};
+use tracing_subscriber::{prelude::*, EnvFilter};
 use uuid::Uuid;
 
 use core::spawn_subsystem;
@@ -140,6 +141,7 @@ async fn reconnect(
     })
     .await
 }
+
 #[instrument(level="ERROR", skip_all, fields(link=?link))]
 async fn handle_link(monitor: Monitor, link: Link) -> SubsystemResult {
     info!("Starting link");
@@ -188,9 +190,11 @@ async fn handle_link(monitor: Monitor, link: Link) -> SubsystemResult {
 
 #[tokio::main]
 async fn main() -> SubsystemResult {
-    tracing_subscriber::fmt::init();
     let args = cli::CliArgs::parse();
     let config = load_config(args.config.as_ref())?;
+
+    setup_logging_infra(&config);
+
     rustls::crypto::ring::default_provider()
         .install_default()
         .map_err(|_| ErrorMessage("Unable to install crypto provider"))?;
@@ -204,6 +208,19 @@ async fn main() -> SubsystemResult {
         Ok(Ok(())) => info!("Exiting"),
     }
     Ok(())
+}
+
+fn setup_logging_infra(config: &Config) {
+    let stdout_logging_layer = tracing_subscriber::fmt::Layer::new()
+        .with_writer(std::io::stdout as fn() -> std::io::Stdout)
+        .pretty()
+        .with_thread_names(true)
+        .with_thread_ids(true)
+        .with_filter(EnvFilter::from_str(config.log_level.as_str()).unwrap());
+
+    tracing_subscriber::registry()
+        .with(stdout_logging_layer)
+        .init();
 }
 
 #[cfg(test)]
