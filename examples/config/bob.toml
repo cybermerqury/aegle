@@ -1,17 +1,17 @@
 [module]
 uuid             = "00000000-0000-0000-0000-00000000000b"
 error_correction = ['Cascade', 'LDPC']
-peer_addr        = "127.0.0.2:9000"
-qkd_addr         = "127.0.0.2:9100"
+peer_addr        = "127.0.0.1:61001"
+qkd_addr         = "127.0.0.1:60001"
 root_cert        = "./certificates/root.pem"
 module_cert      = "./certificates/module.pem"
-logfile            = "app_bob.json"
-logfile_level      = "INFO"
-stdout_level       = "INFO"
+logfile          = "app_bob.json"
+logfile_level    = "INFO"
+stdout_level     = "INFO"
 
 [[peers]]
 uuid = "00000000-0000-0000-0000-00000000000a"
-addr = '127.0.0.1:8213'
+addr = '127.0.0.1:61000'
 [[peers.qkd]]
 local = "00000000-0000-0000-0000-0000000000ba"
 remote = "00000000-0000-0000-0000-0000000000ab"

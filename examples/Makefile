@@ -1,5 +1,5 @@
 .SILENT:
-.PHONY: run_aegle_alice run_aegle_bob run_link_emulator certificates clean
+.PHONY: run_aegle_alice run_aegle_bob run_link_emulator certificates clean_logs clean
 
 CERT_DIR=$(abspath ./certificates)
 
@@ -91,6 +91,8 @@ $(ROOT_CRT):
 	printf "Root certificate '%s' generated.\n" $(ROOT_CRT) \
 		| ts '%d-%m-%Y %H:%M:%S' >> $(LOG) 2>&1
 
-clean:
+clean_logs:
+	rm -rf app_alice.json.* app_bob.json.* module_a.json.*
+
+clean: clean_logs
 	rm -rf $(CERT_DIR)/
-	printf "Certificates and output log removed.\n"
