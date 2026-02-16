@@ -47,7 +47,6 @@ impl QuinnStream {
         Ok(buf)
     }
     pub async fn write_all(&mut self, buf: &[u8]) -> MainResult<()> {
-        //let mut stream = self.connection.open_uni().await?;
         self.writer.write(buf).await?;
         self.writer.flush().await?;
         Ok(())
