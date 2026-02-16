@@ -2,7 +2,8 @@
 
 ## The traits
 
-In order to specify your own post-processing pipeline the `ppaas_core` library provides the following traits:
+In order to specify your own post-processing pipeline the `ppaas_core` library
+provides the following traits:
 
 - `PostProcessingStep`
 - `PostProcessingSetup`
@@ -15,6 +16,7 @@ This trait exposes two methods:
     fn step(&mut self) -> Result<PPStep<Self::Result, FollowerRequests>, PPError>;
     fn update(&mut self, update: FollowerResponse) -> Result<(), PPError>;
 ```
+
 The intended usecase for a post processing step is to be used in a looping fashion, and also a method:
 
 ```rust
@@ -82,10 +84,3 @@ let pipeline = ber_estimate
 ```
 
 then by performing the looping operation with `pipeline.step()` we step through all the seperate stages of post processing, the results of the previous stages informing the creation of subsequent stages: eg if the ber estimate is too high the second step would cause further key processing to be aborted. The estimated error is also provided to the error_correction step, which can be used to select and set up the error correction algorithm to use, and so on.
-
-
-
-
-
-
-
