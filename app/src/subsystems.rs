@@ -36,6 +36,7 @@ pub fn start_subsystems(
     let mut peer_device = HashMap::new();
     let (send_new_stream, recv_new_stream) = tokio::sync::mpsc::channel(1024);
     let mut remote_to_local = HashMap::new();
+
     for peer_info in peers {
         let peer_uuid = peer_info.uuid;
         let mut qkds = Vec::new();
@@ -49,10 +50,12 @@ pub fn start_subsystems(
         }
         peer_device.insert(peer_uuid, qkds);
     }
+
     let module_args = PeerManagementArgs {
         uuid: module.uuid,
         client_config: module.client_config()?,
     };
+
     let (qkd_sender, qkd_receiver) = tokio::sync::mpsc::channel(1024);
     let (panic_sender, panic_recv) = tokio::sync::mpsc::channel::<()>(1024);
 
@@ -62,6 +65,7 @@ pub fn start_subsystems(
         handle_panic(panic_info);
         let _ = panic_sender.clone().try_send(());
     }));
+
     spawn_subsystem!(tm, wait_for_panic(.monitor, panic_recv));
     spawn_subsystem!(tm, peer_management_subsystem(module_args, .monitor, status, send_new_stream.clone(), recv_new_stream, qkd_sender));
     let config = module.server_config()?;
