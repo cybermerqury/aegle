@@ -10,7 +10,7 @@ use config::ModuleConfig;
 use tracing::{error, info};
 use tracing_subscriber::prelude::*;
 
-use crate::{config::Module, subsystems::start_subsystems};
+use crate::subsystems::start_subsystems;
 
 use self::errors::{ErrorMessage, MainResult};
 
