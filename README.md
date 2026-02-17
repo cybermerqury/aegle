@@ -463,7 +463,7 @@ for iter in 0..max_iter {
         .iter_row()
         .map(|row| {
             row.values()
-                .map(|v| if v.is_normal() { \_v } else { 1.0 })
+                .map(|v| if v.is_normal() { *v } else { 1.0 })
                 .product::<f64>()
         })
         .collect::<Vec<f64>>();
@@ -524,7 +524,7 @@ pub fn compute_syndrome(h_matrix: &[Vec<GFElement>], key: &[GFElement]) -> Vec<G
         let mut acc = GFElement::zero();
 
         for (j, val) in row.iter().enumerate() {
-            acc += *val \* key[j]; // Addition and multiplication in GF(2^m)
+            acc += *val * key[j]; // Addition and multiplication in GF(2^m)
         }
 
         syndrome[i] = acc;
