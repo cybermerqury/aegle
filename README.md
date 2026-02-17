@@ -503,9 +503,12 @@ This allows each symbol to represent multiple bits, improving efficiency at low
 error rates and enabling more flexible code design.
 The non-binary LDPC implementation is organized as a self-contained crate that
 provides encoding, syndrome computation, and iterative decoding routines.
-It adheres to the same `Process` trait interface as the other reconciliation
-modules so that it can be used interchangeably within the post-processing
-pipeline.
+The crate implements the basic arithmetic on finite fields that are needed to
+implement the decoder as described by [Davey and
+MacKay](https://ieeexplore.ieee.org/document/706440).
+The module adheres to the same `Process` trait interface as the other
+reconciliation modules so that it can be used interchangeably within the
+post-processing pipeline.
 The following excerpt from shows the syndrome computation, which multiplies the
 parity-check matrix ( $H$ ) by the received codeword vector ( $x$ ) in the
 appropriate Galois Field.
