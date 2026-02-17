@@ -9,7 +9,7 @@ components to run a this two node link.
 
 ```text
 ┌───────┐                        ┌───────┐
-│ Aegle │---------QUIC---------->│ Aegle │
+│ Aegle │<--------QUIC---------->│ Aegle │
 │ Alice │                        │  Bob  │
 └───────┘                        └───────┘
     │         ┌─────-----┐          │

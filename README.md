@@ -1,6 +1,7 @@
 # AEGLE - A quantum key distribution post processing stack
 
 - [Background and motivation](#background-and-motivation)
+- [Compiling and running Aegle](#compiling-and-running-aegle)
 - [Architecture overview](#architecture-overview)
   - [Core](#core)
     - [Key State Machine](#key-state-machine)
@@ -37,6 +38,19 @@ correctly at compile time.
 It also provides a modular architecture, enabling alternative reconciliation
 algorithms other than the currently implemented Cascade and LDPC to be
 integrated easily.
+
+## Compiling and running Aegle
+
+- To build the Aegle project, run the `make build` command.
+- To build the tests bundled with the Aegle project, run the `make build-tests`
+  command.
+- To build the project's rust documentation run the command `make docs`.
+- To view the project's rust documentation run the command `make view-docs`.
+- To remove the compiled artifacts including documentation, run the `make clean`
+  command.
+
+For instructions on how to run the Aegle post processing system, refer to the
+[README](./examples/README.md) in the examples directory.
 
 ## Architecture overview
 
