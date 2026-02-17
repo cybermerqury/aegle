@@ -13,6 +13,7 @@
       - [Binary LDPC](#binary-ldpc)
       - [Non-binary LDPC](#non-binary-ldpc)
     - [Pipeline assembly and executiion](#pipeline-assembly-and-executiion)
+  - [Requirements](#requirements)
   - [Contact us](#contact-us)
   - [License](#license)
 
@@ -710,6 +711,13 @@ let mut buff = vec![0u8; 1024 * 1024];
 }
 ```
 
+## Requirements
+
+To compile this module, the Rust toolchain is expected to be installed.
+This setup has been tested with `rustc` version `v1.93.0`.
+For help and support no how to install the rust toolchain, kindly refer to the
+instructions found on [rustup.rs](https://rustup.rs/).
+
 ## Contact us
 
 If you would like to point out some bug or have some other comment
@@ -722,3 +730,5 @@ This project is licensed under the [PolyForm Noncommercial License
 commercial use of this product.
 If you would like to use this product in a commercial environment, kindly
 contact us on [info@merqury.eu](mailto:info@merqury.eu).
+
+© 2024 - 2026 Merqury Cybersecurity Ltd.
