@@ -1,7 +1,7 @@
 log_level = "INFO"
 [[links]]
 length     = 100
-error_rate = 0
+error_rate = 0.1
 root_cert = "./certificates/root.pem"
 client_cert = "./certificates/module.pem"
 frequency = "10s"
