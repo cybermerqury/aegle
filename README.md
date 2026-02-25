@@ -15,6 +15,7 @@
   - [Pipeline assembly and execution](#pipeline-assembly-and-execution)
 - [Requirements](#requirements)
 - [Contact us](#contact-us)
+- [Acknowledgements](#acknowledgements)
 - [License](#license)
 
 ## Background and motivation
@@ -748,6 +749,12 @@ instructions found on [rustup.rs](https://rustup.rs/).
 
 If you would like to point out some bug or have some other comment
 please feel free to contact us on [info@merqury.eu](mailto:info@merqury.eu).
+
+## Acknowledgements
+
+This software has been developed in the project HYPERSPACE (Hyperentanglement in
+Space) which is funded by the Horizon Europe Programme under the grant agreement
+No 101091561.
 
 ## License
 
