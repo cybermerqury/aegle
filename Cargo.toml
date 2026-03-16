@@ -20,7 +20,7 @@ duration-str = { version = "0.9.1" }
 ndarray = { version = "0.16.1" }
 p12-keystore = { version = "=0.1.2" }
 quinn = { version = "0.11.9", features = ["rustls"] }
-quinn-proto = { version = "0.11.13", features = ["rustls"] }
+quinn-proto = { version = "0.11.14", features = ["rustls"] }
 rand = { version = "0.8.5" }
 rayon = { version = "1.10.0" }
 rustls = { version = "0.23.0" }
