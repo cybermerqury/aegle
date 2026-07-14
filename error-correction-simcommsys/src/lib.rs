@@ -6,6 +6,18 @@ use core::{
     },
 };
 
+pub struct SetupSimCommSys;
+
+impl PostProcessingSetup for SetupSimCommSys {
+    type Worker = SimCommSys;
+    type InitialStage = Reconciling;
+    type SetupArgs = f64;
+
+    fn setup(self, _: Key<Self::InitialStage>, _: Self::SetupArgs) -> Self::Worker {
+        SimCommSys {}
+    }
+}
+
 pub struct SimCommSys;
 
 impl PostProcessingSetup for SimCommSys {
@@ -35,5 +47,3 @@ impl PostProcessingStep for SimCommSys {
         unimplemented!("SimCommSys finalization to be implemented.");
     }
 }
-
-fn main() {}
