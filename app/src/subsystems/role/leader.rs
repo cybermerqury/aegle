@@ -2,15 +2,18 @@
 // SPDX-FileCopyrightText:  © 2024 - 2026 Merqury Cybersecurity Ltd <info@merqury.eu>
 
 use std::io::Write;
+use tokio::sync::mpsc::Receiver;
 use tracing::{error, info, instrument, warn, Instrument};
 
-use core::sync::tasks::Monitor;
 use core::{
     key_state_machine::{Key, Reconciling, Secret, Sifted},
+    sync::tasks::Monitor,
     traits::{FollowerRequests, FollowerResponse, PPError, PPStep, PostProcessingStep},
 };
-use error_correction::cascade::SetupCascade;
-use tokio::sync::mpsc::Receiver;
+#[cfg(feature = "ec_cascade")]
+use ec_cascade::cascade::SetupCascade;
+#[cfg(feature = "ec_simcommsys")]
+use ec_simcommsys::SetupSimCommSys;
 
 use crate::{
     communication::{
@@ -99,10 +102,21 @@ async fn handle_new_key(
 fn create_pipeline(
     key: Key<Reconciling>,
 ) -> Box<impl PostProcessingStep<InitialStage = Reconciling, FinalStage = Secret, Result = ()>> {
-    let pipeline = BEREstimation::new(key, 0.05, 0.95)
-        .pipe(SetupBerLimit::new(0.09))
-        .pipe(SetupCascade::new(4))
-        .pipe(SetupPrivacyAmplification);
+    let pipeline = BEREstimation::new(key, 0.05, 0.95).pipe(SetupBerLimit::new(0.09));
+
+    #[cfg(all(feature = "ec_cascade", feature = "ec_simcommsys"))]
+    compile_error!(
+        "More than one error correction feature enabled. Choose one and disable the others."
+    );
+
+    #[cfg(feature = "ec_cascade")]
+    let ec_stage = SetupCascade::new(4);
+    #[cfg(feature = "ec_simcommsys")]
+    let ec_stage = SetupSimCommSys::new();
+
+    let pipeline = pipeline.pipe(ec_stage);
+
+    let pipeline = pipeline.pipe(SetupPrivacyAmplification);
     Box::new(pipeline)
 }
 
