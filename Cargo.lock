@@ -639,6 +639,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "ec_simcommsys"
+version = "1.0.0"
+dependencies = [
+ "core",
+]
+
+[[package]]
 name = "either"
 version = "1.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

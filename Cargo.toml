@@ -9,6 +9,7 @@ members = [
     "error-correction-binary-ldpc",
     "error-correction-cascade",
     "error-correction-nonbinary-ldpc",
+    "error-correction-simcommsys",
 ]
 
 [workspace.dependencies]
