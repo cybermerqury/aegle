@@ -33,8 +33,8 @@ pub struct InnerGF {
 /// creation of arbitrary field elements.
 /// Finite field arithmetic can be surprising. Let's consider GF(4)
 /// ```rust
-/// # use ppaas_nonbinary_ldpc::utils;
-/// # use ppaas_nonbinary_ldpc::finite_field::{GF, FieldError, FieldElement};
+/// # use ec_nonbinary_ldpc::utils;
+/// # use ec_nonbinary_ldpc::finite_field::{GF, FieldError, FieldElement};
 /// let field = GF::with_size(2,2);
 ///
 /// assert_eq!(field.element(2) + field.element(1), field.element(3));
@@ -47,8 +47,8 @@ pub struct InnerGF {
 /// If you try to perform arithmetic of elements of different fields, it will cause a panic.
 ///
 /// ```should_panic
-/// # use ppaas_nonbinary_ldpc::utils;
-/// # use ppaas_nonbinary_ldpc::finite_field::{GF, FieldError, FieldElement};
+/// # use ec_nonbinary_ldpc::utils;
+/// # use ec_nonbinary_ldpc::finite_field::{GF, FieldError, FieldElement};
 /// let gf4 = GF::with_size(2,2);
 /// let gf3 = GF::with_size(3,1);
 ///

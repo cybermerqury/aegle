@@ -9,8 +9,14 @@ CERT_DIR=$(abspath ./certificates)
 run_aegle_alice:
 	RUST_LOG=INFO cargo run --bin=aegle -- --config-file=config/alice.toml
 
+run_aegle_scs_alice:
+	RUST_LOG=INFO cargo run --bin=aegle --no-default-features -F ec_simcommsys -- --config-file=config/alice.toml
+
 run_aegle_bob:
-	RUST_LOG=INFO cargo run --bin=aegle -- --config-file=config/bob.toml
+	RUST_LOG=INFO cargo run --bin=aegle --no-default-features -F ec_simcommsys -- --config-file=config/bob.toml
+
+run_aegle_scs_bob:
+	RUST_LOG=INFO cargo run --bin=aegle --no-default-features -F ec_simcommsys -- --config-file=config/bob.toml
 
 run_link_emulator:
 	RUST_LOG=INFO cargo run --bin=emulator config/qkd_link_alice_bob.toml

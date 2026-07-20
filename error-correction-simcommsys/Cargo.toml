@@ -1,0 +1,9 @@
+[package]
+name    = "ec_simcommsys"
+version = "1.0.0"
+edition = "2024"
+license = "PolyForm-Noncommercial-1.0.0"
+
+[dependencies]
+core = { workspace = true }
+reqwest = { version = "0.13.4", features = ["json"] }
