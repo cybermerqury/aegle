@@ -4,6 +4,10 @@ version = "1.0.0"
 edition = "2021"
 license = "PolyForm-Noncommercial-1.0.0"
 
+[features]
+default = []
+reqwest = ["dep:reqwest"]
+
 [dependencies]
 bitvec = { workspace = true }
 rand = { workspace = true }
@@ -15,3 +19,4 @@ tokio-util = { workspace = true }
 toml = { workspace = true }
 tracing = { workspace = true }
 uuid = { workspace = true }
+reqwest = { workspace = true, optional = true }

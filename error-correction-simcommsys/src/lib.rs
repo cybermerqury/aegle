@@ -1,3 +1,5 @@
+pub(crate) mod client;
+
 use core::{
     key_state_machine::{Key, Reconciled, Reconciling},
     traits::{

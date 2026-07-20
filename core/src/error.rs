@@ -66,7 +66,7 @@ impl fmt::Display for ErrorKind {
             Self::Validation => "Validation",
         };
 
-        write!(f, "{}", str_value)
+        f.write_str(str_value)
     }
 }
 
@@ -151,6 +151,17 @@ impl<T> From<std::sync::PoisonError<T>> for Error {
         Error {
             error_kind: ErrorKind::PoisonError,
             msg: format!("Description: PoisonError - '{}'", e),
+        }
+    }
+}
+
+// ErrorKind::Network
+#[cfg(feature = "reqwest")]
+impl From<reqwest::Error> for Error {
+    fn from(e: reqwest::Error) -> Self {
+        Error {
+            error_kind: ErrorKind::Network,
+            msg: format!("Description: Network - HTTP error '{}'", e),
         }
     }
 }
