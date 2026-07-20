@@ -445,6 +445,7 @@ dependencies = [
  "rustls",
  "rustls-pemfile",
  "serde",
+ "tempfile",
  "tokio",
  "tokio-util",
  "toml",
@@ -641,7 +642,6 @@ version = "1.0.0"
 dependencies = [
  "bitvec",
  "core",
- "tempfile",
 ]
 
 [[package]]

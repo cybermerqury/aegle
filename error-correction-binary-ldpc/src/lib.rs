@@ -2,15 +2,13 @@
 // SPDX-FileCopyrightText:  © 2024 - 2026 Merqury Cybersecurity Ltd <info@merqury.eu>
 
 pub mod belief_propagation;
-mod error;
-mod matrix;
-mod parity_matrix;
 
 use bitvec::vec::BitVec;
 use std::path::Path;
 
 use core::{
     key_state_machine::{Key, Reconciled, Reconciling},
+    models::parity_matrix::ParityMatrix,
     traits::{
         FollowerRequests, FollowerResponse, PPError, PPStep, PostProcessingSetup,
         PostProcessingStep,
@@ -18,7 +16,6 @@ use core::{
 };
 
 use belief_propagation::BPResult;
-use parity_matrix::ParityMatrix;
 
 pub struct BinaryLDPC {
     key: Key<Reconciling>,
@@ -123,10 +120,10 @@ impl PostProcessingSetup for SetupBinaryLDPC {
 #[cfg(test)]
 mod tests {
     use bitvec::prelude::*;
-    use std::io::Write;
+
+    use core::models::parity_matrix::ParityMatrix;
 
     use crate::belief_propagation;
-    use crate::parity_matrix::ParityMatrix;
 
     const H: [[u8; 6]; 4] = [
         [1, 1, 0, 1, 0, 0],
@@ -134,23 +131,6 @@ mod tests {
         [1, 0, 0, 0, 1, 1],
         [0, 0, 1, 1, 0, 1],
     ];
-
-    const H_ALIST: &str = "\
-        6 4\n\
-        2 3\n\
-        2 2 2 2 2 2\n\
-        3 3 3 3\n\
-        1 3\n\
-        1 2\n\
-        2 4\n\
-        1 4\n\
-        2 3\n\
-        3 4\n\
-        1 2 4\n\
-        2 3 5\n\
-        1 5 6\n\
-        3 4 6\n\
-        ";
 
     #[test]
     fn syndrome_calc() {
@@ -179,16 +159,5 @@ mod tests {
         let result = belief_propagation::propagate(&pm, &corrupted, &syndrome, 0.2, 100);
         let recovered = result.get_estimate();
         assert_eq!(&message, recovered.as_ref());
-    }
-
-    #[test]
-    fn read_alist() {
-        let mut temp_file =
-            tempfile::NamedTempFile::new().expect("Error creating a temporary file");
-        write!(temp_file, "{}", H_ALIST).unwrap();
-        let m1 = ParityMatrix::from_alist(temp_file.path()).unwrap();
-        let m2 = ParityMatrix::from_array(&H);
-        assert!(m1.iter_factors().eq(m2.iter_factors()));
-        assert!(m1.iter_variables().eq(m2.iter_variables()));
     }
 }

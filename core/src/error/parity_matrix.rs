@@ -1,10 +1,4 @@
-// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
-// SPDX-FileCopyrightText:  © 2024 - 2026 Merqury Cybersecurity Ltd <info@merqury.eu>
-
-use std::error::Error;
-use std::fmt::Display;
-use std::num;
-use std::str::FromStr;
+use std::{error::Error, fmt::Display, str::FromStr};
 
 #[derive(Debug)]
 pub enum ParityMatrixError {
@@ -29,8 +23,8 @@ impl Display for ParityMatrixError {
     }
 }
 
-impl From<num::ParseIntError> for ParityMatrixError {
-    fn from(value: num::ParseIntError) -> Self {
+impl From<std::num::ParseIntError> for ParityMatrixError {
+    fn from(value: std::num::ParseIntError) -> Self {
         ParityMatrixError::ConversionError(value)
     }
 }

@@ -10,7 +10,7 @@ use std::{
     str::FromStr,
 };
 
-use crate::error::ParityMatrixError;
+use crate::error::parity_matrix::ParityMatrixError;
 
 static EMPTY: Vec<usize> = vec![];
 
@@ -20,56 +20,6 @@ type Neighbours = Vec<usize>;
 pub struct ParityMatrix {
     factors: BTreeMap<usize, Neighbours>,
     variables: BTreeMap<usize, Neighbours>,
-}
-
-fn populate_neighbours(
-    lines: &mut Lines<BufReader<File>>,
-    n: usize,
-) -> Result<BTreeMap<usize, Neighbours>, ParityMatrixError> {
-    let mut read_lines = 0;
-    let mut map = BTreeMap::new();
-    for (variable, line) in lines.take(n).enumerate() {
-        let v = line?
-            .split(' ')
-            .filter_map(|num_str| {
-                if num_str == "0" {
-                    None
-                } else {
-                    Some(usize::from_str(num_str).map(|x| x - 1))
-                }
-            })
-            .collect::<Result<Neighbours, _>>()?;
-        map.insert(variable, v);
-        read_lines += 1;
-    }
-    if read_lines != n {
-        Err(ParityMatrixError::FileTooShort)
-    } else {
-        Ok(map)
-    }
-}
-
-fn read_tuple(lines: &mut Lines<BufReader<File>>) -> Result<(usize, usize), ParityMatrixError> {
-    let Some(line) = lines.next() else {
-        return Err(ParityMatrixError::FileTooShort);
-    };
-    let l = line?;
-    let x: [&str; 2] = l
-        .split(' ')
-        .collect::<Vec<_>>()
-        .try_into()
-        .map_err(|_| ParityMatrixError::ExpectedTuple(l.to_string()))?;
-    Ok((usize::from_str(x[0])?, usize::from_str(x[1])?))
-}
-
-fn read_vec(lines: &mut Lines<BufReader<File>>) -> Result<Vec<usize>, ParityMatrixError> {
-    let Some(line) = lines.next() else {
-        return Err(ParityMatrixError::FileTooShort);
-    };
-    Ok(line?
-        .split(' ')
-        .map(usize::from_str)
-        .collect::<Result<Vec<usize>, _>>()?)
 }
 
 impl ParityMatrix {
@@ -166,5 +116,97 @@ impl ParityMatrix {
 
     pub fn iter_variables(&self) -> impl Iterator<Item = (&usize, &Neighbours)> {
         self.variables.iter()
+    }
+}
+
+fn populate_neighbours(
+    lines: &mut Lines<BufReader<File>>,
+    n: usize,
+) -> Result<BTreeMap<usize, Neighbours>, ParityMatrixError> {
+    let mut read_lines = 0;
+    let mut map = BTreeMap::new();
+    for (variable, line) in lines.take(n).enumerate() {
+        let v = line?
+            .split(' ')
+            .filter_map(|num_str| {
+                if num_str == "0" {
+                    None
+                } else {
+                    Some(usize::from_str(num_str).map(|x| x - 1))
+                }
+            })
+            .collect::<Result<Neighbours, _>>()?;
+        map.insert(variable, v);
+        read_lines += 1;
+    }
+    if read_lines != n {
+        Err(ParityMatrixError::FileTooShort)
+    } else {
+        Ok(map)
+    }
+}
+
+fn read_tuple(lines: &mut Lines<BufReader<File>>) -> Result<(usize, usize), ParityMatrixError> {
+    let Some(line) = lines.next() else {
+        return Err(ParityMatrixError::FileTooShort);
+    };
+    let l = line?;
+    let x: [&str; 2] = l
+        .split(' ')
+        .collect::<Vec<_>>()
+        .try_into()
+        .map_err(|_| ParityMatrixError::ExpectedTuple(l.to_string()))?;
+    Ok((usize::from_str(x[0])?, usize::from_str(x[1])?))
+}
+
+fn read_vec(lines: &mut Lines<BufReader<File>>) -> Result<Vec<usize>, ParityMatrixError> {
+    let Some(line) = lines.next() else {
+        return Err(ParityMatrixError::FileTooShort);
+    };
+    Ok(line?
+        .split(' ')
+        .map(usize::from_str)
+        .collect::<Result<Vec<usize>, _>>()?)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::Write;
+
+    use crate::models::parity_matrix::ParityMatrix;
+
+    const H: [[u8; 6]; 4] = [
+        [1, 1, 0, 1, 0, 0],
+        [0, 1, 1, 0, 1, 0],
+        [1, 0, 0, 0, 1, 1],
+        [0, 0, 1, 1, 0, 1],
+    ];
+
+    const H_ALIST: &str = "\
+        6 4\n\
+        2 3\n\
+        2 2 2 2 2 2\n\
+        3 3 3 3\n\
+        1 3\n\
+        1 2\n\
+        2 4\n\
+        1 4\n\
+        2 3\n\
+        3 4\n\
+        1 2 4\n\
+        2 3 5\n\
+        1 5 6\n\
+        3 4 6\n\
+        ";
+
+    #[test]
+    fn read_alist() {
+        let mut temp_file =
+            tempfile::NamedTempFile::new().expect("Error creating a temporary file");
+        write!(temp_file, "{}", H_ALIST).unwrap();
+        let m1 = ParityMatrix::from_alist(temp_file.path()).unwrap();
+        let m2 = ParityMatrix::from_array(&H);
+        assert!(m1.iter_factors().eq(m2.iter_factors()));
+        assert!(m1.iter_variables().eq(m2.iter_variables()));
     }
 }
