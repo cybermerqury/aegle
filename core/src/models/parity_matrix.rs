@@ -50,28 +50,53 @@ impl ParityMatrix {
     pub fn from_alist(file: &Path) -> Result<Self, ParityMatrixError> {
         let alist_file = std::fs::File::open(file)?;
         let mut lines = std::io::BufReader::new(alist_file).lines();
+
+        // Load all metadata.
         let (num_variables, num_factors) = read_tuple(lines.by_ref())?;
         let (max_variable_neighbours, max_factor_neighbours) = read_tuple(lines.by_ref())?;
-        let _ = read_vec(lines.by_ref())?;
-        let _ = read_vec(lines.by_ref())?;
+        let expected_variable_neighbours = read_vec(lines.by_ref())?;
+        let expected_factor_neighbours = read_vec(lines.by_ref())?;
+
+        // Load the variables.
         let variables = populate_neighbours(lines.by_ref(), num_variables)?;
         // SAFETY: This is safe as if variables is empty populate_neighbours would return an Err
-        let read_max_variable_nbrs = variables.values().map(|x| x.len()).max().unwrap();
+        let actual_variable_neighbours = variables.values().map(|x| x.len()).collect::<Vec<_>>();
+        let read_max_variable_nbrs = *actual_variable_neighbours.iter().max().unwrap();
+
+        if expected_variable_neighbours != actual_variable_neighbours {
+            return Err(ParityMatrixError::BadAListFile(format!(
+                "variables weights do not match variable weights distribution found. Expected: {:?}, got: {:?}",
+                expected_variable_neighbours, actual_variable_neighbours
+            )));
+        }
+
         if read_max_variable_nbrs != max_variable_neighbours {
             return Err(ParityMatrixError::BadAListFile(format!(
                 "Unexpected largest number of variable neighbours. Expected: {}, got: {}",
                 max_factor_neighbours, read_max_variable_nbrs
             )));
         }
+
+        // Load the factors.
         let factors = populate_neighbours(lines.by_ref(), num_factors)?;
+        let actual_factor_neighbours = factors.values().map(|x| x.len()).collect::<Vec<_>>();
         // SAFETY: This is safe as if factors is empty populate_neighbours would return an Err
-        let read_max_factor_nbrs = factors.values().map(|x| x.len()).max().unwrap();
+        let read_max_factor_nbrs = *actual_factor_neighbours.iter().max().unwrap();
+
+        if expected_factor_neighbours != actual_factor_neighbours {
+            return Err(ParityMatrixError::BadAListFile(format!(
+                "Factor weights do not match factor weights distribution found. Expected: {:?}, got: {:?}",
+                expected_factor_neighbours, actual_factor_neighbours
+            )));
+        }
+
         if read_max_factor_nbrs != max_factor_neighbours {
             return Err(ParityMatrixError::BadAListFile(format!(
                 "Unexpected largest number of factor neighbours. Expected: {}, got: {}",
                 max_factor_neighbours, read_max_factor_nbrs
             )));
         }
+
         if lines.next().is_none() {
             Ok(Self { variables, factors })
         } else {
@@ -128,13 +153,8 @@ fn populate_neighbours(
     for (variable, line) in lines.take(n).enumerate() {
         let v = line?
             .split(' ')
-            .filter_map(|num_str| {
-                if num_str == "0" {
-                    None
-                } else {
-                    Some(usize::from_str(num_str).map(|x| x - 1))
-                }
-            })
+            .filter(|num_str| *num_str == "0")
+            .map(|num_str| usize::from_str(num_str).map(|x| x - 1))
             .collect::<Result<Neighbours, _>>()?;
         map.insert(variable, v);
         read_lines += 1;
