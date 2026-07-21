@@ -8,3 +8,6 @@ license = "PolyForm-Noncommercial-1.0.0"
 core = { workspace = true, features = ["reqwest"] }
 reqwest = { workspace = true }
 serde_json = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

@@ -12,7 +12,7 @@ use std::{
 
 use crate::error::parity_matrix::ParityMatrixError;
 
-static EMPTY: Vec<usize> = vec![];
+const EMPTY: [usize; 0] = [];
 
 type Neighbours = Vec<usize>;
 
@@ -153,7 +153,7 @@ fn populate_neighbours(
     for (variable, line) in lines.take(n).enumerate() {
         let v = line?
             .split(' ')
-            .filter(|num_str| *num_str == "0")
+            .filter(|num_str| *num_str != "0")
             .map(|num_str| usize::from_str(num_str).map(|x| x - 1))
             .collect::<Result<Neighbours, _>>()?;
         map.insert(variable, v);
@@ -226,7 +226,14 @@ mod tests {
         write!(temp_file, "{}", H_ALIST).unwrap();
         let m1 = ParityMatrix::from_alist(temp_file.path()).unwrap();
         let m2 = ParityMatrix::from_array(&H);
-        assert!(m1.iter_factors().eq(m2.iter_factors()));
-        assert!(m1.iter_variables().eq(m2.iter_variables()));
+
+        assert_eq!(
+            m1.iter_factors().collect::<Vec<_>>(),
+            m2.iter_factors().collect::<Vec<_>>()
+        );
+        assert_eq!(
+            m1.iter_variables().collect::<Vec<_>>(),
+            m2.iter_variables().collect::<Vec<_>>()
+        );
     }
 }

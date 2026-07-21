@@ -669,6 +669,7 @@ dependencies = [
  "core",
  "reqwest",
  "serde_json",
+ "tempfile",
 ]
 
 [[package]]
