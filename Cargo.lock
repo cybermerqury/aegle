@@ -668,8 +668,10 @@ version = "1.0.0"
 dependencies = [
  "core",
  "reqwest",
+ "serde",
  "serde_json",
  "tempfile",
+ "tracing",
 ]
 
 [[package]]

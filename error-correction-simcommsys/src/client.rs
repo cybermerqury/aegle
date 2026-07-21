@@ -1,9 +1,16 @@
-use core::{error::Result, models::parity_matrix::ParityMatrix};
-use std::{format, println};
+use std::format;
 
 use reqwest::blocking::{Client, ClientBuilder};
+use serde::Deserialize;
 use serde_json::json;
+use tracing::debug;
 
+use core::{
+    error::{Error, ErrorKind, Result},
+    models::parity_matrix::ParityMatrix,
+};
+
+/// A basic client/wrapper around a simcommsys REST API.
 pub struct SCSApi {
     base_url: String,
     client: Client,
@@ -23,27 +30,43 @@ impl SCSApi {
         })
     }
 
-    pub fn register(&self, matrix: &ParityMatrix) -> Result<()> {
+    /// Register a parity matrix with simcommsys.
+    pub fn register(&self, codec_name: &str, matrix: &ParityMatrix) -> Result<()> {
         let url = self.url(Self::REGISTER_CODEC_URL);
 
-        let id: &str = "aegle-codec";
         let config = parity_matrix_to_codec(matrix)?;
 
         let response = self
             .client
             .get(url)
             .json(&json!({
-                "codec_id": id,
+                "codec_id": codec_name,
                 "config": config
             }))
             .send()?;
 
-        Ok(())
+        debug!("Response msg: {}", response.status());
+
+        let body = response.json::<RegisterResponse>()?;
+
+        match body.is_success {
+            true => {
+                debug!("SCS codec registered. Message: {}", body.message);
+                Ok(())
+            }
+            false => Err(Error::new(ErrorKind::Network, body.message)),
+        }
     }
 
     fn url(&self, additional_url: &str) -> String {
         format!("{}/{}", self.base_url, additional_url)
     }
+}
+
+#[derive(Deserialize)]
+pub struct RegisterResponse {
+    pub is_success: bool,
+    pub message: String,
 }
 
 /// Convert a given parity matrix to a codec config,
