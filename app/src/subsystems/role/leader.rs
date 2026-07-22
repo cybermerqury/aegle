@@ -10,10 +10,6 @@ use core::{
     sync::tasks::Monitor,
     traits::{FollowerRequests, FollowerResponse, PPError, PPStep, PostProcessingStep},
 };
-#[cfg(feature = "ec_cascade")]
-use ec_cascade::cascade::SetupCascade;
-#[cfg(feature = "ec_simcommsys")]
-use ec_simcommsys::SetupSimCommSys;
 
 use crate::{
     communication::{
@@ -28,6 +24,25 @@ use crate::{
         {FullKeyId, LocalDeviceId, PeerId},
     },
 };
+
+#[cfg(feature = "ec_cascade")]
+use ec_cascade::cascade::SetupCascade;
+#[cfg(feature = "ec_simcommsys")]
+use ec_simcommsys::SetupSimCommSys;
+
+#[cfg(feature = "ec_simcommsys")]
+const PARITY_MATRIX: [[u8; 6]; 4] = [
+    [1, 1, 0, 1, 0, 0],
+    [0, 1, 1, 0, 1, 0],
+    [1, 0, 0, 0, 1, 1],
+    [0, 0, 1, 1, 0, 1],
+];
+
+#[cfg(feature = "ec_simcommsys")]
+const SCS_CODEC_ID: &str = "aegle-codec";
+
+#[cfg(feature = "ec_simcommsys")]
+const SCS_BASE_URL: &str = "http://localhost:8000";
 
 struct Leader {
     peer_id: PeerId,
@@ -101,7 +116,9 @@ async fn handle_new_key(
 
 fn create_pipeline(
     key: Key<Reconciling>,
-) -> Box<impl PostProcessingStep<InitialStage = Reconciling, FinalStage = Secret, Result = ()>> {
+) -> core::error::Result<
+    Box<impl PostProcessingStep<InitialStage = Reconciling, FinalStage = Secret, Result = ()>>,
+> {
     let pipeline = BEREstimation::new(key, 0.05, 0.95).pipe(SetupBerLimit::new(0.09));
 
     #[cfg(all(feature = "ec_cascade", feature = "ec_simcommsys"))]
@@ -112,12 +129,12 @@ fn create_pipeline(
     #[cfg(feature = "ec_cascade")]
     let ec_stage = SetupCascade::new(4);
     #[cfg(feature = "ec_simcommsys")]
-    let ec_stage = SetupSimCommSys::new();
+    let ec_stage = SetupSimCommSys::from_array(SCS_CODEC_ID, &PARITY_MATRIX, SCS_BASE_URL)?;
 
     let pipeline = pipeline.pipe(ec_stage);
 
     let pipeline = pipeline.pipe(SetupPrivacyAmplification);
-    Box::new(pipeline)
+    Ok(Box::new(pipeline))
 }
 
 async fn run_step<P>(
@@ -172,7 +189,14 @@ async fn process_key(connection: quinn::Connection, key: Key<Sifted>) {
     }
 
     info!("Starting post processing");
-    let mut cur_pipeline = create_pipeline(key.verify().start_reconciliation());
+    let mut cur_pipeline = match create_pipeline(key.verify().start_reconciliation()) {
+        Ok(pipeline) => pipeline,
+        Err(e) => {
+            error!("Failed to construct pipeline. Error: {e}");
+            return;
+        }
+    };
+
     loop {
         if let Some((pipeline, next_step)) = run_step(cur_pipeline).await {
             cur_pipeline = pipeline;

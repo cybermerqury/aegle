@@ -8,23 +8,42 @@ use core::{
         PostProcessingStep,
     },
 };
-use std::path::{Path, PathBuf};
 
-use tracing::error;
+use std::path::Path;
+
+use tracing::{debug, error};
 
 use crate::client::SCSApi;
 
-pub const SCS_CODEC_ID: &str = "aegle-codec";
-
 pub struct SetupSimCommSys {
-    matrix_filepath: PathBuf,
+    codec_id: String,
+    matrix: ParityMatrix,
     client: SCSApi,
 }
 
 impl SetupSimCommSys {
-    pub fn new(matrix_filepath: &Path, client: SCSApi) -> Self {
+    pub fn from_array<T>(
+        codec_id: &str,
+        matrix_array: &[T],
+        base_url: &str,
+    ) -> core::error::Result<Self>
+    where
+        T: AsRef<[u8]>,
+    {
+        let client = SCSApi::new(base_url)?;
+
+        Ok(Self {
+            codec_id: codec_id.to_string(),
+            matrix: ParityMatrix::from_array(matrix_array),
+            client,
+        })
+    }
+
+    pub fn from_file(codec_id: &str, matrix_filepath: &Path, client: SCSApi) -> Self {
+        // TODO - Remove unwrap.
         Self {
-            matrix_filepath: matrix_filepath.to_path_buf(),
+            codec_id: codec_id.to_string(),
+            matrix: ParityMatrix::from_alist(matrix_filepath).unwrap(),
             client,
         }
     }
@@ -33,16 +52,13 @@ impl SetupSimCommSys {
     /// Loads the parity matrix from an alist file then submits it to simcommsys.
     /// Returns whether the endpoint was successful or not.
     fn register_with_scs(&self) -> bool {
-        let parity_matrix = match ParityMatrix::from_alist(&self.matrix_filepath) {
-            Ok(pm) => pm,
-            Err(e) => {
-                error!("Failed to load parity matrix. Error: {e}");
-                return false;
-            }
-        };
+        debug!(
+            "Registering with simcommsys server as '{}'. Matrix: {:?}",
+            self.codec_id, self.matrix
+        );
 
         self.client
-            .register(SCS_CODEC_ID, &parity_matrix)
+            .register(&self.codec_id, &self.matrix)
             .inspect_err(|e| error!("Error during setup. Error: {e}"))
             .is_ok()
     }
@@ -71,9 +87,9 @@ pub struct SimCommSys {
 }
 
 impl PostProcessingStep for SimCommSys {
-    type InitialStage = Reconciling;
-    type FinalStage = Reconciled;
     type Result = ();
+    type FinalStage = Reconciled;
+    type InitialStage = Reconciling;
 
     fn step(&mut self) -> Result<PPStep<Self::Result, FollowerRequests>, PPError> {
         Err(PPError::new(

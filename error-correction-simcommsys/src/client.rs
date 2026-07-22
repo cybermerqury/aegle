@@ -3,7 +3,7 @@ use std::format;
 use reqwest::blocking::{Client, ClientBuilder};
 use serde::Deserialize;
 use serde_json::json;
-use tracing::debug;
+use tracing::{debug, instrument};
 
 use core::{
     error::{Error, ErrorKind, Result},
@@ -31,8 +31,11 @@ impl SCSApi {
     }
 
     /// Register a parity matrix with simcommsys.
+    #[instrument(skip(self, matrix))]
     pub fn register(&self, codec_name: &str, matrix: &ParityMatrix) -> Result<()> {
         let url = self.url(Self::REGISTER_CODEC_URL);
+
+        debug!("Generating config.");
 
         let config = parity_matrix_to_codec(matrix)?;
 
@@ -73,8 +76,16 @@ pub struct RegisterResponse {
 pub fn parity_matrix_to_codec(matrix: &ParityMatrix) -> Result<String> {
     // Get max dimension weights.
 
-    let max_row_weight = matrix.iter_factors().map(|(_, f)| f.len()).max().unwrap();
-    let max_col_weight = matrix.iter_variables().map(|(_, v)| v.len()).max().unwrap();
+    let max_row_weight = matrix
+        .iter_factors()
+        .map(|(_, f)| f.len())
+        .max()
+        .ok_or_else(|| Error::new(ErrorKind::InconsistentData, "Max row weight not found."))?;
+    let max_col_weight = matrix
+        .iter_variables()
+        .map(|(_, v)| v.len())
+        .max()
+        .ok_or_else(|| Error::new(ErrorKind::InconsistentData, "Max col weight not found."))?;
 
     // Get the respective indices in one-indexed format, padded with 0's if needed.
 

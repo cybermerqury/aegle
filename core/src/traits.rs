@@ -72,7 +72,7 @@ impl<First, Second> Pipe<First, MutState<Second>>
 where
     First: PostProcessingStep,
     Second: PostProcessingSetup,
-    Second::SetupArgs: From<First::Result>,
+    First::Result: Into<Second::SetupArgs>,
 {
     fn new(first: First, second: Second) -> Self {
         Self {
@@ -86,7 +86,7 @@ impl<First, Second> PostProcessingStep for Pipe<First, MutState<Second>>
 where
     First: PostProcessingStep,
     Second: PostProcessingSetup<InitialStage = First::FinalStage>,
-    Second::SetupArgs: From<First::Result>,
+    First::Result: Into<Second::SetupArgs>,
 {
     type Result = <Second::Worker as PostProcessingStep>::Result;
     type FinalStage = <Second::Worker as PostProcessingStep>::FinalStage;
@@ -172,7 +172,7 @@ pub trait PostProcessingStep: Send {
     where
         Self: Sized,
         T: PostProcessingSetup<InitialStage = Self::FinalStage>,
-        T::SetupArgs: From<Self::Result>,
+        Self::Result: Into<T::SetupArgs>,
     {
         Pipe::new(self, other)
     }

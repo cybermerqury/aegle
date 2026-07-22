@@ -48,8 +48,8 @@ impl ParityMatrix {
     }
 
     pub fn from_alist(file: &Path) -> Result<Self, ParityMatrixError> {
-        let alist_file = std::fs::File::open(file)?;
-        let mut lines = std::io::BufReader::new(alist_file).lines();
+        let alist_file = File::open(file)?;
+        let mut lines = BufReader::new(alist_file).lines();
 
         // Load all metadata.
         let (num_variables, num_factors) = read_tuple(lines.by_ref())?;

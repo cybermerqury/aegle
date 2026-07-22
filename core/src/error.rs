@@ -79,8 +79,11 @@ pub struct Error {
 }
 
 impl Error {
-    pub fn new(error_kind: ErrorKind, msg: String) -> Self {
-        Self { error_kind, msg }
+    pub fn new(error_kind: ErrorKind, msg: impl Into<String>) -> Self {
+        Self {
+            error_kind,
+            msg: msg.into(),
+        }
     }
 
     pub fn kind(&self) -> ErrorKind {
