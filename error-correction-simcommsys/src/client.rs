@@ -1,6 +1,6 @@
 use std::format;
 
-use reqwest::blocking::{Client, ClientBuilder};
+// use reqwest::{Client, ClientBuilder};
 use serde::Deserialize;
 use serde_json::json;
 use tracing::{debug, instrument};
@@ -13,20 +13,16 @@ use core::{
 /// A basic client/wrapper around a simcommsys REST API.
 pub struct SCSApi {
     base_url: String,
-    client: Client,
 }
 
 impl SCSApi {
-    pub const REGISTER_CODEC_URL: &str = "/register";
-    pub const CALC_SYNDROME_URL: &str = "/calculate-syndrome";
-    pub const DECODE_URL: &str = "/decode";
+    pub const REGISTER_CODEC_URL: &str = "register";
+    pub const CALC_SYNDROME_URL: &str = "calculate-syndrome";
+    pub const DECODE_URL: &str = "decode";
 
     pub fn new(base_url: &str) -> Result<Self> {
-        let client = ClientBuilder::new().build()?;
-
         Ok(Self {
             base_url: base_url.to_string(),
-            client,
         })
     }
 
@@ -39,18 +35,16 @@ impl SCSApi {
 
         let config = parity_matrix_to_codec(matrix)?;
 
-        let response = self
-            .client
-            .get(url)
-            .json(&json!({
-                "codec_id": codec_name,
-                "config": config
-            }))
-            .send()?;
+        tracing::info!("Sending request to '{url}'");
+
+        let response = ureq::post(url).send_json(&json!({
+            "codec_id": codec_name,
+            "config": config
+        }))?;
 
         debug!("Response msg: {}", response.status());
 
-        let body = response.json::<RegisterResponse>()?;
+        let body = response.into_body().read_json::<RegisterResponse>()?;
 
         match body.is_success {
             true => {

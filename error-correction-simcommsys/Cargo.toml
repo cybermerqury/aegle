@@ -5,11 +5,13 @@ edition = "2024"
 license = "PolyForm-Noncommercial-1.0.0"
 
 [dependencies]
-core = { workspace = true, features = ["reqwest"] }
+core = { workspace = true, features = ["reqwest", "ureq"] }
 reqwest = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tracing = { workspace = true }
+tokio = { workspace = true }
+ureq = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
