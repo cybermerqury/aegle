@@ -76,7 +76,6 @@ impl PostProcessingSetup for SetupSimCommSys {
         self.register_with_scs()?;
 
         Ok(SimCommSys {
-            is_ready: true,
             key,
             client: self.client,
         })
@@ -84,7 +83,6 @@ impl PostProcessingSetup for SetupSimCommSys {
 }
 
 pub struct SimCommSys {
-    is_ready: bool,
     key: Key<Reconciling>,
     client: SCSApi,
 }
@@ -95,12 +93,9 @@ impl PostProcessingStep for SimCommSys {
     type InitialStage = Reconciling;
 
     fn step(&mut self) -> Result<PPStep<Self::Result, FollowerRequests>, PPError> {
-        match self.is_ready {
-            true => Err(PPError::new(
-                "SimCommSys processing step to be implemented.",
-            )),
-            false => Err(PPError::new("SimCommSys was not set up successfully.")),
-        }
+        Err(PPError::new(
+            "SimCommSys processing step to be implemented.",
+        ))
     }
 
     fn update(&mut self, _: FollowerResponse) -> Result<(), PPError> {
