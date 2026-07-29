@@ -50,8 +50,7 @@ impl SetupSimCommSys {
 
     /// Register this setup with simcommsys.
     /// Loads the parity matrix from an alist file then submits it to simcommsys.
-    /// Returns whether the endpoint was successful or not.
-    fn register_with_scs(&self) -> bool {
+    fn register_with_scs(&self) -> core::error::Result<()> {
         debug!(
             "Registering with simcommsys server as '{}'. Matrix: {:?}",
             self.codec_id, self.matrix
@@ -60,7 +59,6 @@ impl SetupSimCommSys {
         self.client
             .register(&self.codec_id, &self.matrix)
             .inspect_err(|e| error!("Error during setup. Error: {e:?}"))
-            .is_ok()
     }
 }
 
@@ -68,15 +66,20 @@ impl PostProcessingSetup for SetupSimCommSys {
     type Worker = SimCommSys;
     type InitialStage = <Self::Worker as PostProcessingStep>::InitialStage;
     type SetupArgs = f64;
+    type SetupErr = core::error::Error;
 
-    fn setup(self, key: Key<Self::InitialStage>, _: Self::SetupArgs) -> Self::Worker {
-        let setup_success = self.register_with_scs();
+    fn setup(
+        self,
+        key: Key<Self::InitialStage>,
+        _: Self::SetupArgs,
+    ) -> Result<Self::Worker, Self::SetupErr> {
+        self.register_with_scs()?;
 
-        SimCommSys {
-            is_ready: setup_success,
+        Ok(SimCommSys {
+            is_ready: true,
             key,
             client: self.client,
-        }
+        })
     }
 }
 

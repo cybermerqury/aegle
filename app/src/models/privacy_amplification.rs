@@ -9,6 +9,7 @@ use core::{
         PostProcessingStep,
     },
 };
+use std::convert::Infallible;
 
 pub struct SetupPrivacyAmplification;
 
@@ -78,15 +79,21 @@ impl PostProcessingStep for PrivacyAmplification {
 
 impl PostProcessingSetup for SetupPrivacyAmplification {
     type InitialStage = Reconciled;
-    type SetupArgs = ();
     type Worker = PrivacyAmplification;
+    type SetupArgs = ();
+    type SetupErr = Infallible;
 
-    fn setup(self, key: Key<Self::InitialStage>, _args: Self::SetupArgs) -> Self::Worker {
+    fn setup(
+        self,
+        key: Key<Self::InitialStage>,
+        _args: Self::SetupArgs,
+    ) -> Result<Self::Worker, Self::SetupErr> {
         let t = Toeplitz::new(key.length(), key.length() - key.leaked_bits());
-        Self::Worker {
+
+        Ok(Self::Worker {
             key: KeyState::BeforePA(key),
             confirmed: false,
             toeplitz: t,
-        }
+        })
     }
 }

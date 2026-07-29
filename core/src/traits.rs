@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 // SPDX-FileCopyrightText:  © 2024 - 2026 Merqury Cybersecurity Ltd <info@merqury.eu>
 
+use std::fmt::Display;
+
 // SPDX-FileCopyrightText: © 2024 Merqury Cybersecurity Ltd <info@merqury.eu>
 use bitvec::vec::BitVec;
+use tracing::warn;
 
 use crate::{key_state_machine::Key, models::Toeplitz};
 
@@ -59,7 +62,13 @@ where
         let op = std::mem::replace(&mut self.0, State::NoOp);
         match op {
             State::Setup(u) => {
-                self.0 = State::Step(u.setup(key, args));
+                let worker = u.setup(key, args).map_err(|e| {
+                    warn!("Error during pipeline stage setup. Error: {e}");
+                    PPError("Pipeline stage setup failed.")
+                })?;
+
+                self.0 = State::Step(worker);
+
                 Ok(())
             }
             State::Step(_) => Err(PPError::new("Already set up")),
@@ -150,7 +159,13 @@ pub trait PostProcessingSetup: Send {
     type InitialStage;
     type Worker: PostProcessingStep<InitialStage = Self::InitialStage>;
     type SetupArgs;
-    fn setup(self, key: Key<Self::InitialStage>, args: Self::SetupArgs) -> Self::Worker;
+    type SetupErr: Display;
+
+    fn setup(
+        self,
+        key: Key<Self::InitialStage>,
+        args: Self::SetupArgs,
+    ) -> Result<Self::Worker, Self::SetupErr>;
 }
 
 pub trait PostProcessingStep: Send {

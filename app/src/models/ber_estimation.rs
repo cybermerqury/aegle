@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 // SPDX-FileCopyrightText:  © 2024 - 2026 Merqury Cybersecurity Ltd <info@merqury.eu>
 
-use std::f64;
 use std::ops::Div;
+use std::{convert::Infallible, f64};
 
 use statrs::distribution::{ContinuousCDF, Normal};
 
@@ -149,13 +149,18 @@ impl PostProcessingSetup for SetupBerLimit {
     type InitialStage = Reconciling;
     type Worker = BERLimit;
     type SetupArgs = f64;
+    type SetupErr = Infallible;
 
-    fn setup(self, key: Key<Self::InitialStage>, args: Self::SetupArgs) -> Self::Worker {
-        Self::Worker {
+    fn setup(
+        self,
+        key: Key<Self::InitialStage>,
+        args: Self::SetupArgs,
+    ) -> Result<Self::Worker, Self::SetupErr> {
+        Ok(Self::Worker {
             key,
             max_ber: self.max_ber,
             current_ber: args,
-        }
+        })
     }
 }
 

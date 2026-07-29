@@ -4,7 +4,7 @@
 pub mod belief_propagation;
 
 use bitvec::vec::BitVec;
-use std::path::Path;
+use std::{convert::Infallible, path::Path};
 
 use core::{
     key_state_machine::{Key, Reconciled, Reconciling},
@@ -102,18 +102,24 @@ impl PostProcessingSetup for SetupBinaryLDPC {
     type Worker = BinaryLDPC;
 
     type SetupArgs = f64;
+    type SetupErr = Infallible;
 
-    fn setup(self, key: Key<Self::InitialStage>, args: Self::SetupArgs) -> Self::Worker {
+    fn setup(
+        self,
+        key: Key<Self::InitialStage>,
+        args: Self::SetupArgs,
+    ) -> Result<Self::Worker, Self::SetupErr> {
         let parity_matrix =
             ParityMatrix::from_alist(Path::new(&self.parity_matrix_alist_file)).unwrap();
-        Self::Worker {
+
+        Ok(Self::Worker {
             error_estimate: args,
             key,
             parity_matrix,
             max_iter: self.max_iter,
             reconciled_key: None,
             syndrome: None,
-        }
+        })
     }
 }
 
