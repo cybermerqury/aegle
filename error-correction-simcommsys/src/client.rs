@@ -3,7 +3,7 @@ use std::format;
 // use reqwest::{Client, ClientBuilder};
 use serde::Deserialize;
 use serde_json::json;
-use tracing::{debug, instrument, trace, warn};
+use tracing::{debug, instrument, warn};
 use ureq::Agent;
 
 use core::{
@@ -54,14 +54,14 @@ impl SCSApi {
                 success: true,
                 message,
             } => {
-                debug!("SCS codec registered. Message: {}", message);
+                debug!("SCS codec registered. Server message: {message}");
                 Ok(())
             }
             RegisterResponse::Ok {
                 success: false,
                 message,
-            } => Err(Error::new(ErrorKind::Network, message)),
-            RegisterResponse::Err { message } => Err(Error::new(ErrorKind::Network, message)),
+            }
+            | RegisterResponse::Err { message } => Err(Error::new(ErrorKind::Network, message)),
         }
     }
 

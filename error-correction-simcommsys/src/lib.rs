@@ -92,9 +92,12 @@ impl PostProcessingStep for SimCommSys {
     type InitialStage = Reconciling;
 
     fn step(&mut self) -> Result<PPStep<Self::Result, FollowerRequests>, PPError> {
-        Err(PPError::new(
-            "SimCommSys processing step to be implemented.",
-        ))
+        match self.is_ready {
+            true => Err(PPError::new(
+                "SimCommSys processing step to be implemented.",
+            )),
+            false => Err(PPError::new("SimCommSys was not set up successfully.")),
+        }
     }
 
     fn update(&mut self, _: FollowerResponse) -> Result<(), PPError> {
