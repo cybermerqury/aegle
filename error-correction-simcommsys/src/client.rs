@@ -3,7 +3,8 @@ use std::format;
 // use reqwest::{Client, ClientBuilder};
 use serde::Deserialize;
 use serde_json::json;
-use tracing::{debug, instrument};
+use tracing::{debug, instrument, trace, warn};
+use ureq::Agent;
 
 use core::{
     error::{Error, ErrorKind, Result},
@@ -13,6 +14,7 @@ use core::{
 /// A basic client/wrapper around a simcommsys REST API.
 pub struct SCSApi {
     base_url: String,
+    client: Agent,
 }
 
 impl SCSApi {
@@ -21,8 +23,11 @@ impl SCSApi {
     pub const DECODE_URL: &str = "decode";
 
     pub fn new(base_url: &str) -> Result<Self> {
+        let agent_config = Agent::config_builder().http_status_as_error(false).build();
+
         Ok(Self {
             base_url: base_url.to_string(),
+            client: Agent::new_with_config(agent_config),
         })
     }
 
@@ -35,23 +40,28 @@ impl SCSApi {
 
         let config = parity_matrix_to_codec(matrix)?;
 
-        tracing::info!("Sending request to '{url}'");
-
-        let response = ureq::post(url).send_json(&json!({
+        let response = self.client.post(url).send_json(&json!({
             "codec_id": codec_name,
-            "config": config
+            "config": &config.trim()
         }))?;
 
-        debug!("Response msg: {}", response.status());
+        debug!("Response status: {}", response.status());
 
         let body = response.into_body().read_json::<RegisterResponse>()?;
 
-        match body.is_success {
-            true => {
-                debug!("SCS codec registered. Message: {}", body.message);
+        match body {
+            RegisterResponse::Ok {
+                success: true,
+                message,
+            } => {
+                debug!("SCS codec registered. Message: {}", message);
                 Ok(())
             }
-            false => Err(Error::new(ErrorKind::Network, body.message)),
+            RegisterResponse::Ok {
+                success: false,
+                message,
+            } => Err(Error::new(ErrorKind::Network, message)),
+            RegisterResponse::Err { message } => Err(Error::new(ErrorKind::Network, message)),
         }
     }
 
@@ -61,9 +71,16 @@ impl SCSApi {
 }
 
 #[derive(Deserialize)]
-pub struct RegisterResponse {
-    pub is_success: bool,
-    pub message: String,
+#[serde(untagged)]
+pub enum RegisterResponse {
+    Ok {
+        success: bool,
+        message: String,
+    },
+    Err {
+        #[serde(rename = "detail")]
+        message: String,
+    },
 }
 
 /// Convert a given parity matrix to a codec config,
@@ -153,7 +170,7 @@ pub fn parity_matrix_to_codec(matrix: &ParityMatrix) -> Result<String> {
         # Length (n)
         {length}
         # Dimension (m)
-        {dimension},
+        {dimension}
         # Max column weight
         {max_col_weight}
         # Max row weight

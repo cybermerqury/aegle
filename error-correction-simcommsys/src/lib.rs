@@ -59,7 +59,7 @@ impl SetupSimCommSys {
 
         self.client
             .register(&self.codec_id, &self.matrix)
-            .inspect_err(|e| error!("Error during setup. Error: {e}"))
+            .inspect_err(|e| error!("Error during setup. Error: {e:?}"))
             .is_ok()
     }
 }
