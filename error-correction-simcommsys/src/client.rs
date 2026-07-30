@@ -8,6 +8,7 @@ use ureq::Agent;
 
 use core::{
     error::{Error, ErrorKind, Result},
+    key_state_machine::{Key, Reconciling},
     models::parity_matrix::ParityMatrix,
 };
 
@@ -19,7 +20,7 @@ pub struct SCSApi {
 
 impl SCSApi {
     pub const REGISTER_CODEC_URL: &str = "register";
-    pub const CALC_SYNDROME_URL: &str = "calculate-syndrome";
+    pub const CALCULATE_SYNDROME_URL: &str = "calculate-syndrome";
     pub const DECODE_URL: &str = "decode";
 
     pub fn new(base_url: &str) -> Result<Self> {
@@ -61,8 +62,34 @@ impl SCSApi {
                 success: false,
                 message,
             }
-            | RegisterResponse::Err { message } => Err(Error::new(ErrorKind::Network, message)),
+            | RegisterResponse::Err(ErrorResponse { message }) => {
+                Err(Error::new(ErrorKind::Network, message))
+            }
         }
+    }
+
+    pub fn calculate_syndrome(&self, codec_name: &str, codeword: &Key<Reconciling>) -> Result<()> {
+        let url = self.url(Self::CALCULATE_SYNDROME_URL);
+
+        let codeword = codeword
+            .get_interior_ref()
+            .iter()
+            .by_vals()
+            .map(u32::from)
+            .collect::<Vec<_>>();
+
+        let payload = json!({
+            "codec_id": codec_name,
+            "codeword": codeword
+        });
+
+        debug!("Sending 'calculate_syndrome' request. Payload: {payload}");
+
+        let response = self.client.post(url).send_json(payload)?;
+
+        debug!("Response status: {}", response.status());
+
+        Ok(())
     }
 
     fn url(&self, additional_url: &str) -> String {
@@ -71,16 +98,16 @@ impl SCSApi {
 }
 
 #[derive(Deserialize)]
+pub struct ErrorResponse {
+    #[serde(rename = "detail")]
+    message: String,
+}
+
+#[derive(Deserialize)]
 #[serde(untagged)]
 pub enum RegisterResponse {
-    Ok {
-        success: bool,
-        message: String,
-    },
-    Err {
-        #[serde(rename = "detail")]
-        message: String,
-    },
+    Ok { success: bool, message: String },
+    Err(ErrorResponse),
 }
 
 /// Convert a given parity matrix to a codec config,

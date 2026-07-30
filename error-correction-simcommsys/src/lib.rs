@@ -11,7 +11,7 @@ use core::{
 
 use std::path::Path;
 
-use tracing::{debug, error};
+use tracing::{debug, error, warn};
 
 use crate::client::SCSApi;
 
@@ -78,11 +78,13 @@ impl PostProcessingSetup for SetupSimCommSys {
         Ok(SimCommSys {
             key,
             client: self.client,
+            codec_id: self.codec_id,
         })
     }
 }
 
 pub struct SimCommSys {
+    codec_id: String,
     key: Key<Reconciling>,
     client: SCSApi,
 }
@@ -93,6 +95,15 @@ impl PostProcessingStep for SimCommSys {
     type InitialStage = Reconciling;
 
     fn step(&mut self) -> Result<PPStep<Self::Result, FollowerRequests>, PPError> {
+        // TODO Move this to follower.
+        let response = self
+            .client
+            .calculate_syndrome(&self.codec_id, &self.key)
+            .map_err(|e| {
+                warn!("Calculate syndrome failed. Error: {e}");
+                PPError::new("Failed to calculate syndrome")
+            })?;
+
         Err(PPError::new(
             "SimCommSys processing step to be implemented.",
         ))
