@@ -7,8 +7,9 @@ use std::convert::Infallible;
 use std::sync::{Arc, RwLock, Weak};
 
 use core::key_state_machine::{Key, Reconciled, Reconciling};
-use core::traits::{
-    FollowerRequests, FollowerResponse, PPError, PPStep, PostProcessingSetup, PostProcessingStep,
+use core::{
+    models::follower_comms::{FollowerRequests, FollowerResponse},
+    traits::{PPError, PPStep, PostProcessingSetup, PostProcessingStep},
 };
 
 type CascadeNode = Arc<RwLock<CascadeBlock>>;

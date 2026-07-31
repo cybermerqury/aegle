@@ -10,8 +10,9 @@ use core::key_state_machine::{Key, Reconciling};
 use tracing::info;
 
 use crate::errors::MainResult;
-use core::traits::{
-    FollowerRequests, FollowerResponse, PPError, PPStep, PostProcessingSetup, PostProcessingStep,
+use core::{
+    models::follower_comms::{FollowerRequests, FollowerResponse},
+    traits::{PPError, PPStep, PostProcessingSetup, PostProcessingStep},
 };
 
 fn calculate_sample_size(

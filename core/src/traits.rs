@@ -7,7 +7,10 @@ use std::fmt::Display;
 use bitvec::vec::BitVec;
 use tracing::warn;
 
-use crate::{key_state_machine::Key, models::Toeplitz};
+use crate::{
+    key_state_machine::Key,
+    models::follower_comms::{FollowerRequests, FollowerResponse},
+};
 
 pub enum PPStep<R, U> {
     GetUpdate(U),
@@ -133,26 +136,6 @@ where
     fn finalize(self) -> Result<Key<Self::FinalStage>, PPError> {
         self.second.finalize()
     }
-}
-
-#[derive(serde::Serialize, serde::Deserialize, Debug)]
-pub enum FollowerRequests {
-    Reveal(Vec<usize>),
-    Syndrome(Vec<Vec<usize>>),
-    PrivacyAmplification(Toeplitz),
-}
-
-#[derive(serde::Serialize, serde::Deserialize)]
-pub enum PAReply {
-    Confirmed,
-    Error,
-}
-
-#[derive(serde::Serialize, serde::Deserialize)]
-pub enum FollowerResponse {
-    Reveal(BitVec),
-    Syndrome(BitVec),
-    PrivacyAmplificationConfirmed(PAReply),
 }
 
 pub trait PostProcessingSetup: Send {

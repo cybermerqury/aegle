@@ -3,11 +3,11 @@
 
 use core::{
     key_state_machine::{Key, Reconciled, Secret},
-    models::Toeplitz,
-    traits::{
-        FollowerRequests, FollowerResponse, PPError, PPStep, PostProcessingSetup,
-        PostProcessingStep,
+    models::{
+        follower_comms::{FollowerRequests, FollowerResponse},
+        Toeplitz,
     },
+    traits::{PPError, PPStep, PostProcessingSetup, PostProcessingStep},
 };
 use std::convert::Infallible;
 

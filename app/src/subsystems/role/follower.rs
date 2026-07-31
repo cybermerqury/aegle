@@ -2,8 +2,8 @@
 // SPDX-FileCopyrightText:  © 2024 - 2026 Merqury Cybersecurity Ltd <info@merqury.eu>
 
 use bitvec::vec::BitVec;
+use core::models::follower_comms::{FollowerRequests, FollowerResponse, PAReply};
 use core::spawn_subsystem;
-use core::traits::{FollowerRequests, FollowerResponse, PAReply};
 use std::collections::HashMap;
 use std::io::Write;
 use std::time::Duration;

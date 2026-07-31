@@ -7,8 +7,9 @@ use tracing::{error, info, instrument, warn, Instrument};
 
 use core::{
     key_state_machine::{Key, Reconciling, Secret, Sifted},
+    models::follower_comms::{FollowerRequests, FollowerResponse},
     sync::tasks::Monitor,
-    traits::{FollowerRequests, FollowerResponse, PPError, PPStep, PostProcessingStep},
+    traits::{PPError, PPStep, PostProcessingStep},
 };
 
 use crate::{
@@ -147,6 +148,7 @@ where
     P: PostProcessingStep + 'static,
     <P as PostProcessingStep>::Result: Send,
 {
+    // TODO Look into making `step` async.
     tokio::task::spawn_blocking(move || {
         let r = pipeline.step();
         (pipeline, r)

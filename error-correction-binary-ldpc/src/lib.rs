@@ -8,11 +8,11 @@ use std::{convert::Infallible, path::Path};
 
 use core::{
     key_state_machine::{Key, Reconciled, Reconciling},
-    models::parity_matrix::ParityMatrix,
-    traits::{
-        FollowerRequests, FollowerResponse, PPError, PPStep, PostProcessingSetup,
-        PostProcessingStep,
+    models::{
+        follower_comms::{FollowerRequests, FollowerResponse},
+        parity_matrix::ParityMatrix,
     },
+    traits::{PPError, PPStep, PostProcessingSetup, PostProcessingStep},
 };
 
 use belief_propagation::BPResult;
