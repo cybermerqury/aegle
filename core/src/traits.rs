@@ -3,8 +3,6 @@
 
 use std::fmt::Display;
 
-// SPDX-FileCopyrightText: © 2024 Merqury Cybersecurity Ltd <info@merqury.eu>
-use bitvec::vec::BitVec;
 use tracing::warn;
 
 use crate::{
