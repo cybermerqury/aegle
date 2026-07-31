@@ -720,6 +720,7 @@ dependencies = [
 name = "ec_simcommsys"
 version = "1.0.0"
 dependencies = [
+ "bitvec",
  "core",
  "reqwest",
  "serde",
