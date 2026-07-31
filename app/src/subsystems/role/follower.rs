@@ -10,7 +10,7 @@ use std::io::Write;
 use std::time::Duration;
 use tokio::sync::{mpsc, oneshot};
 
-use core::key_state_machine::{Key, Sifted};
+use core::key_state_machine::{Key, Reconciling, Secret, Sifted};
 use core::sync::tasks::{Monitor, TaskManager};
 use tracing::{error, info, instrument, warn, Instrument};
 
@@ -198,24 +198,31 @@ impl KeyProcessor {
     }
 
     async fn get_key(&mut self, get_key: oneshot::Receiver<Key<Sifted>>) -> Option<Key<Sifted>> {
-        match tokio::time::timeout(Self::WAIT_FOR_KEY_TIMEOUT, get_key).await {
+        let found_key = match tokio::time::timeout(Self::WAIT_FOR_KEY_TIMEOUT, get_key).await {
             Err(_) => {
                 warn!("Could not find key");
-                let _ = self.send_msg(&RegisterReply::not_found(self.key_id)).await;
                 None
             }
             Ok(Err(e)) => {
                 warn!("Error occured while trying to get key: {}", e);
-                let _ = self.send_msg(&RegisterReply::not_found(self.key_id)).await;
                 None
             }
             Ok(Ok(key)) => Some(key),
+        };
+
+        if found_key.is_none() {
+            let reply = RegisterReply::not_found(self.key_id);
+            if let Err(e) = self.send_msg(&reply).await {
+                warn!("Failed to send 'not_found' reply. Error: {e:?}");
+            }
         }
+
+        found_key
     }
 
     #[instrument(name = "process_key", skip_all, fields(%key_id=self.key_id))]
     pub async fn process(mut self, get_key: oneshot::Receiver<Key<Sifted>>) {
-        let Some(key) = self.get_key(get_key).await else {
+        let Some(key): Option<Key<Sifted>> = self.get_key(get_key).await else {
             return;
         };
 
@@ -234,69 +241,32 @@ impl KeyProcessor {
                 .await;
             return;
         }
+
         info!("Found key");
+
         let _ = self.send_msg(&RegisterReply::KeyFound(self.key_id)).await;
-        let buff = &mut vec![0; 1024 * 1024];
-        let mut key = key.verify().start_reconciliation();
-        let mut leaked_bits = 0;
-        let secret_key = loop {
-            let request: FollowerRequests = match self.recv_msg(buff).await {
-                Ok(request) => request,
-                Err(e) => {
-                    warn!("Error processing request: {:?}", e);
-                    return;
+
+        let key = key.verify().start_reconciliation();
+
+        let secret_key = match self.construct_secret_key(key).await {
+            Ok(Some(secret_key)) => secret_key,
+            Ok(None) => {
+                warn!("Cannot perform privacy amplification");
+
+                if let Err(e) = self
+                    .send_msg(&FollowerResponse::PrivacyAmplificationConfirmed(
+                        PAReply::Error,
+                    ))
+                    .await
+                {
+                    warn!("Unable to send PA error to peer: {:?}", e);
                 }
-            };
-            match request {
-                FollowerRequests::Reveal(idx) => {
-                    let mut revealed = BitVec::new();
-                    for i in idx {
-                        revealed.push(key.reveal(i).unwrap());
-                    }
-                    let response = FollowerResponse::Reveal(revealed);
-                    if let Err(e) = self.send_msg(&response).await {
-                        warn!("Unable to send revealed bits to peer: {:?}", e);
-                        return;
-                    };
-                    key.remove_revealed();
-                }
-                FollowerRequests::Syndrome(vec_idx) => {
-                    let mut syndrome = BitVec::new();
-                    for idx in vec_idx {
-                        leaked_bits += 1;
-                        syndrome.push(calc_syndrome(&idx, key.get_interior_ref()));
-                    }
-                    if let Err(e) = self.send_msg(&FollowerResponse::Syndrome(syndrome)).await {
-                        warn!("Error sending syndrome to peer: {:?}", e);
-                        return;
-                    };
-                }
-                FollowerRequests::PrivacyAmplification(toeplitz) => {
-                    let data = key.get_interior();
-                    let reconciled = key.reconcile(data.into(), leaked_bits);
-                    break reconciled.privacy_amplification(&toeplitz);
-                }
+                return;
             }
-        };
-        let Some(secret_key) = secret_key else {
-            warn!("Cannot perform privacy amplification");
-            if let Err(e) = self
-                .send_msg(&FollowerResponse::PrivacyAmplificationConfirmed(
-                    PAReply::Error,
-                ))
-                .await
-            {
-                warn!("Unable to send PA error to peer: {:?}", e);
+            Err(e) => {
+                warn!("Failed to construct secret key. Error: {e:?}");
+                return;
             }
-            return;
-        };
-        if let Err(e) = self
-            .send_msg(&FollowerResponse::PrivacyAmplificationConfirmed(
-                PAReply::Confirmed,
-            ))
-            .await
-        {
-            warn!("Unable to confirm privacy amplification: {:?}", e)
         };
 
         let mut file = std::fs::OpenOptions::new()
@@ -318,6 +288,50 @@ impl KeyProcessor {
             .as_bytes(),
         );
         info!("Post processing finished");
+    }
+
+    async fn construct_secret_key(
+        &mut self,
+        mut key: Key<Reconciling>,
+    ) -> MainResult<Option<Key<Secret>>> {
+        let buff = &mut vec![0; 1024 * 1024];
+        let mut leaked_bits = 0;
+
+        loop {
+            let request: FollowerRequests = self
+                .recv_msg(buff)
+                .await
+                .inspect_err(|e| warn!("Error processing request: {e:?}"))?;
+
+            match request {
+                FollowerRequests::Reveal(idx) => {
+                    let mut revealed = BitVec::new();
+                    for i in idx {
+                        revealed.push(key.reveal(i).unwrap());
+                    }
+                    let response = FollowerResponse::Reveal(revealed);
+                    self.send_msg(&response)
+                        .await
+                        .inspect_err(|e| warn!("Unable to send revealed bits to peer: {e:?}"))?;
+                    key.remove_revealed();
+                }
+                FollowerRequests::Syndrome(vec_idx) => {
+                    let mut syndrome = BitVec::new();
+                    for idx in vec_idx {
+                        leaked_bits += 1;
+                        syndrome.push(calc_syndrome(&idx, key.get_interior_ref()));
+                    }
+                    self.send_msg(&FollowerResponse::Syndrome(syndrome))
+                        .await
+                        .inspect_err(|e| warn!("Error sending syndrome to peer: {e:?}"))?;
+                }
+                FollowerRequests::PrivacyAmplification(toeplitz) => {
+                    let data = key.get_interior();
+                    let reconciled = key.reconcile(data.into(), leaked_bits);
+                    return Ok(reconciled.privacy_amplification(&toeplitz));
+                }
+            }
+        }
     }
 
     async fn send_msg<T>(&mut self, msg: &T) -> MainResult<()>
