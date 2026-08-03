@@ -3,10 +3,14 @@
 
 use bitvec::vec::BitVec;
 use core::models::follower_comms::{FollowerRequests, FollowerResponse, PAReply};
+use core::models::parity_matrix::ParityMatrix;
 use core::spawn_subsystem;
+#[cfg(feature = "ec_simcommsys")]
+use ec_simcommsys::client::SCSApi;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io::Write;
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{mpsc, oneshot};
 
@@ -18,6 +22,7 @@ use crate::communication::key_processing::{RegisterKey, RegisterReply};
 use crate::communication::parse::{read_message, send_message};
 use crate::communication::quic::QuinnStream;
 use crate::errors::{MainResult, SubsystemResult};
+use crate::models::matrices::PARITY_MATRIX;
 use crate::models::{DeviceId, FullId, FullKeyId, KeyId, LocalDeviceId, PeerId};
 
 type NewKeyEntry = (
@@ -34,6 +39,8 @@ struct Follower {
     peer_id: PeerId,
     device_id: LocalDeviceId,
     connection: quinn::Connection,
+    #[cfg(feature = "ec_simcommsys")]
+    client: Arc<SCSApi>,
 }
 
 impl Follower {
@@ -54,6 +61,7 @@ impl Follower {
 pub async fn start_follower(
     monitor: Monitor,
     connection: quinn::Connection,
+    #[cfg(feature = "ec_simcommsys")] client: Arc<SCSApi>,
     peer_id: PeerId,
     device_id: LocalDeviceId,
     new_key: mpsc::Receiver<Key<Sifted>>,
@@ -64,6 +72,8 @@ pub async fn start_follower(
         peer_id,
         device_id,
         connection: connection.clone(),
+        #[cfg(feature = "ec_simcommsys")]
+        client,
     };
     let (key_sender, key_receiver) = tokio::sync::mpsc::channel(1024);
     async fn wait_for_cancel(inner_monitor: Monitor, outer_monitor: Monitor) -> SubsystemResult {
@@ -158,7 +168,7 @@ async fn handle_new_key(
                         let (_, rx) = keys_working.entry(full_id)
                                         .or_insert_with(create_entry);
 
-                        let processor = KeyProcessor::new(stream, full_id, register_key.len());
+                        let processor = KeyProcessor::new(stream, #[cfg(feature = "ec_simcommsys")] role.client.clone(), full_id, register_key.len());
 
                         match rx.take() {
                             Some(receiver) => {
@@ -183,14 +193,23 @@ struct KeyProcessor {
     key_id: KeyId,
     device_id: DeviceId,
     expected_len: usize,
+    #[cfg(feature = "ec_simcommsys")]
+    scs_client: Arc<SCSApi>,
 }
 
 impl KeyProcessor {
     const WAIT_FOR_KEY_TIMEOUT: Duration = Duration::from_secs(30);
 
-    fn new(stream: QuinnStream, full_id: FullId, expected_len: usize) -> Self {
+    fn new(
+        stream: QuinnStream,
+        #[cfg(feature = "ec_simcommsys")] scs_client: Arc<SCSApi>,
+        full_id: FullId,
+        expected_len: usize,
+    ) -> Self {
         Self {
             stream,
+            #[cfg(feature = "ec_simcommsys")]
+            scs_client,
             key_id: full_id.0,
             device_id: full_id.1,
             expected_len,
@@ -230,6 +249,7 @@ impl KeyProcessor {
             let _ = self.send_msg(&RegisterReply::found(self.key_id)).await;
             return;
         }
+
         if key.length() != self.expected_len {
             warn!(
                 "Length mismatch. Got {}, expected {}",
@@ -304,11 +324,20 @@ impl KeyProcessor {
                 .inspect_err(|e| warn!("Error processing request: {e:?}"))?;
 
             match request {
+                #[cfg(feature = "ec_simcommsys")]
+                FollowerRequests::RegisterCode(code_name) => {
+                    info!("Registering LDPC code '{code_name}' with SimCommSys.");
+
+                    let matrix = ParityMatrix::from_array(&PARITY_MATRIX);
+
+                    self.scs_client.register(&code_name, &matrix)?;
+                }
                 FollowerRequests::Reveal(idx) => {
-                    let mut revealed = BitVec::new();
-                    for i in idx {
-                        revealed.push(key.reveal(i).unwrap());
-                    }
+                    let revealed = idx
+                        .into_iter()
+                        .map(|i| key.reveal(i).unwrap())
+                        .collect::<BitVec>();
+
                     let response = FollowerResponse::Reveal(revealed);
                     self.send_msg(&response)
                         .await
@@ -316,11 +345,12 @@ impl KeyProcessor {
                     key.remove_revealed();
                 }
                 FollowerRequests::Syndrome(vec_idx) => {
-                    let mut syndrome = BitVec::new();
-                    for idx in vec_idx {
-                        leaked_bits += 1;
-                        syndrome.push(calc_syndrome(&idx, key.get_interior_ref()));
-                    }
+                    leaked_bits += vec_idx.len();
+                    let syndrome = vec_idx
+                        .into_iter()
+                        .map(|idx| calc_syndrome(&idx, key.get_interior_ref()))
+                        .collect::<BitVec>();
+
                     self.send_msg(&FollowerResponse::Syndrome(syndrome))
                         .await
                         .inspect_err(|e| warn!("Error sending syndrome to peer: {e:?}"))?;
@@ -350,9 +380,5 @@ impl KeyProcessor {
 }
 
 fn calc_syndrome(idx: &[usize], key: &BitVec) -> bool {
-    let mut s = false;
-    for i in idx {
-        s ^= key[*i]
-    }
-    s
+    idx.into_iter().fold(false, |acc, i| acc ^ key[*i])
 }

@@ -12,6 +12,8 @@ use core::{
     traits::{PPError, PPStep, PostProcessingStep},
 };
 
+#[cfg(feature = "ec_simcommsys")]
+use crate::models::matrices::{PARITY_MATRIX, SCS_CODEC_ID};
 use crate::{
     communication::{
         key_processing::{RegisterKey, RegisterReply},
@@ -30,20 +32,6 @@ use crate::{
 use ec_cascade::cascade::SetupCascade;
 #[cfg(feature = "ec_simcommsys")]
 use ec_simcommsys::SetupSimCommSys;
-
-#[cfg(feature = "ec_simcommsys")]
-const PARITY_MATRIX: [[u8; 6]; 4] = [
-    [1, 1, 0, 1, 0, 0],
-    [0, 1, 1, 0, 1, 0],
-    [1, 0, 0, 0, 1, 1],
-    [0, 0, 1, 1, 0, 1],
-];
-
-#[cfg(feature = "ec_simcommsys")]
-const SCS_CODEC_ID: &str = "aegle-codec";
-
-#[cfg(feature = "ec_simcommsys")]
-const SCS_BASE_URL: &str = "http://localhost:8000";
 
 struct Leader {
     peer_id: PeerId,
@@ -129,8 +117,10 @@ fn create_pipeline(
 
     #[cfg(feature = "ec_cascade")]
     let ec_stage = SetupCascade::new(4);
+    /// TODO Fix SCS base url passing.
     #[cfg(feature = "ec_simcommsys")]
-    let ec_stage = SetupSimCommSys::from_array(SCS_CODEC_ID, &PARITY_MATRIX, SCS_BASE_URL)?;
+    let ec_stage =
+        SetupSimCommSys::from_array(SCS_CODEC_ID, &PARITY_MATRIX, "http://localhost:8080")?;
 
     let pipeline = pipeline.pipe(ec_stage);
 

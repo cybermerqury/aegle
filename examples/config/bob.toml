@@ -12,6 +12,10 @@ stdout_level     = "INFO"
 [[peers]]
 uuid = "00000000-0000-0000-0000-00000000000a"
 addr = '127.0.0.1:61000'
+
 [[peers.qkd]]
 local = "00000000-0000-0000-0000-0000000000ba"
 remote = "00000000-0000-0000-0000-0000000000ab"
+
+[simcommsys]
+base_url = "http://localhost:8000"

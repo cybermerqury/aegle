@@ -5,6 +5,7 @@ pub mod ber_estimation;
 pub mod privacy_amplification;
 pub mod update_qkd;
 
+pub mod matrices;
 mod peer;
 
 use core::generate_uuid_newtype;

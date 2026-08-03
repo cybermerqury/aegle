@@ -9,10 +9,14 @@ use std::collections::HashMap;
 
 use core::sync::tasks::Monitor;
 use core::{spawn_subsystem, sync::tasks::TaskManager};
+#[cfg(feature = "ec_simcommsys")]
+use ec_simcommsys::client::SCSApi;
+#[cfg(feature = "ec_simcommsys")]
+use std::sync::Arc;
 use tokio::sync::mpsc::Receiver;
 use tracing::error;
 
-use crate::config::Module;
+use crate::config::{Module, ModuleConfig};
 use crate::errors::{MainResult, SubsystemError, SubsystemResult};
 use crate::models::{LocalDeviceId, MutPeerState, PeerInfo, PeerManagementArgs, RemoteDeviceId};
 
@@ -29,17 +33,15 @@ async fn wait_for_panic(monitor: Monitor, mut panic_receiver: Receiver<()>) -> S
     }
 }
 
-pub fn start_subsystems(
-    module: &Module,
-    peers: Vec<PeerInfo>,
-) -> MainResult<TaskManager<SubsystemError>> {
+pub fn start_subsystems(config: ModuleConfig) -> MainResult<TaskManager<SubsystemError>> {
+    let module = config.module;
     let mut tm = TaskManager::new();
     let mut status = HashMap::new();
     let mut peer_device = HashMap::new();
     let (send_new_stream, recv_new_stream) = tokio::sync::mpsc::channel(1024);
     let mut remote_to_local = HashMap::new();
 
-    for peer_info in peers {
+    for peer_info in config.peers {
         let peer_uuid = peer_info.uuid;
         let mut qkds = Vec::new();
         for qkd_info in &peer_info.qkd {
@@ -68,8 +70,17 @@ pub fn start_subsystems(
         let _ = panic_sender.clone().try_send(());
     }));
 
+    #[cfg(feature = "ec_simcommsys")]
+    let scs_client = Arc::new(SCSApi::new(&config.simcommsys.base_url)?);
+
     spawn_subsystem!(tm, wait_for_panic(.monitor, panic_recv));
+
+    /// TODO Improve feature-conditional requirements (scs client).
+    #[cfg(feature = "ec_simcommsys")]
+    spawn_subsystem!(tm, peer_management_subsystem(module_args, .monitor, status, send_new_stream.clone(), recv_new_stream, qkd_sender, scs_client));
+    #[cfg(not(feature = "ec_simcommsys"))]
     spawn_subsystem!(tm, peer_management_subsystem(module_args, .monitor, status, send_new_stream.clone(), recv_new_stream, qkd_sender));
+
     let config = module.server_config()?;
     spawn_subsystem!(tm, listen_for_peer_connections(module.peer_addr, send_new_stream.clone(), .monitor, config, remote_to_local));
     spawn_subsystem!(tm, qkd_manager(.monitor, module.qkd_addr, module.server_config()?,peer_device, qkd_receiver));

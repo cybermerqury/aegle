@@ -36,7 +36,7 @@ async fn main() -> MainResult<()> {
     info!("Starting ppaas module");
     info!("Config is: '{:?}'", config);
 
-    let tm = start_subsystems(&config.module, config.peers)?;
+    let tm = start_subsystems(config)?;
     match tm.monitor().await {
         Ok(Ok(())) => info!("Goodbye"),
         Ok(Err(e)) => error!("Subsystem error: {}", e),
