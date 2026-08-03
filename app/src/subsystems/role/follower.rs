@@ -324,24 +324,6 @@ impl KeyProcessor {
                 .inspect_err(|e| warn!("Error processing request: {e:?}"))?;
 
             match request {
-                #[cfg(feature = "ec_simcommsys")]
-                FollowerRequests::RegisterCode(code_name) => {
-                    info!("Registering LDPC code '{code_name}' with SimCommSys.");
-
-                    let matrix = ParityMatrix::from_array(&PARITY_MATRIX);
-
-                    let is_success = self
-                        .scs_client
-                        .register(&code_name, &matrix)
-                        .inspect_err(|e| warn!("Failed to register code. Error: {e}"))
-                        .is_ok();
-
-                    let response = FollowerResponse::RegisterCode(is_success);
-
-                    self.send_msg(&response).await.inspect_err(|e| {
-                        warn!("Unable to send registration result. Error: {e:?}")
-                    })?;
-                }
                 FollowerRequests::Reveal(idx) => {
                     let revealed = idx
                         .into_iter()
@@ -370,6 +352,38 @@ impl KeyProcessor {
                     let reconciled = key.reconcile(data.into(), leaked_bits);
                     return Ok(reconciled.privacy_amplification(&toeplitz));
                 }
+                #[cfg(feature = "ec_simcommsys")]
+                FollowerRequests::SCSRegisterCode(code_id) => {
+                    info!("Registering LDPC code '{code_id}' with SimCommSys.");
+
+                    let matrix = ParityMatrix::from_array(&PARITY_MATRIX);
+
+                    let is_success = self
+                        .scs_client
+                        .register(&code_id, &matrix)
+                        .inspect_err(|e| warn!("Failed to register code. Error: {e}"))
+                        .is_ok();
+
+                    let response = FollowerResponse::SCSRegisterCode(is_success);
+
+                    self.send_msg(&response).await.inspect_err(|e| {
+                        warn!("Unable to send registration result. Error: {e:?}")
+                    })?;
+                }
+                #[cfg(feature = "ec_simcommsys")]
+                FollowerRequests::SCSSyndrome(code_id) => {
+                    let is_success = self
+                        .scs_client
+                        .calculate_syndrome(&code_id, &key)
+                        .inspect_err(|e| warn!("Calculate syndrome failed. Error: {e}"))
+                        .is_ok();
+
+                    let response = FollowerResponse::SCSSyndrome(None);
+
+                    self.send_msg(&response).await.inspect_err(|e| {
+                        warn!("Unable to send syndrome calculation result. Error: {e:?}")
+                    })?;
+                } // _ => todo!("Should not reach this."),
             }
         }
     }

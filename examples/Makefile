@@ -13,7 +13,7 @@ run_aegle_scs_alice:
 	RUST_LOG=INFO cargo run --bin=aegle --no-default-features -F ec_simcommsys -- --config-file=config/alice.toml
 
 run_aegle_bob:
-	RUST_LOG=INFO cargo run --bin=aegle --no-default-features -F ec_simcommsys -- --config-file=config/bob.toml
+	RUST_LOG=INFO cargo run --bin=aegle --no-default-features -- --config-file=config/bob.toml
 
 run_aegle_scs_bob:
 	RUST_LOG=INFO cargo run --bin=aegle --no-default-features -F ec_simcommsys -- --config-file=config/bob.toml

@@ -51,9 +51,12 @@ impl PostProcessingStep for SimCommSys {
         //     })?;
 
         match self.follower_next_step {
-            FollowerPendingStep::Register => Ok(PPStep::GetUpdate(FollowerRequests::RegisterCode(
-                self.codec_id.clone(),
-            ))),
+            FollowerPendingStep::Register => Ok(PPStep::GetUpdate(
+                FollowerRequests::SCSRegisterCode(self.codec_id.clone()),
+            )),
+            FollowerPendingStep::GetSyndrome => Ok(PPStep::GetUpdate(
+                FollowerRequests::SCSSyndrome(self.codec_id.clone()),
+            )),
             _ => Err(PPError::new(
                 "SimCommSys processing step to be implemented.",
             )),
@@ -62,12 +65,12 @@ impl PostProcessingStep for SimCommSys {
 
     fn update(&mut self, response: FollowerResponse) -> Result<(), PPError> {
         match response {
-            FollowerResponse::RegisterCode(true) => {
+            FollowerResponse::SCSRegisterCode(true) => {
                 info!("Follower registered with SimCommSys successfully.");
                 self.follower_next_step = FollowerPendingStep::GetSyndrome;
                 Ok(())
             }
-            FollowerResponse::RegisterCode(false) => Err(PPError::new(
+            FollowerResponse::SCSRegisterCode(false) => Err(PPError::new(
                 "Follower SimCommSys code registration failed.",
             )),
             _ => Err(PPError::new("Unexpected follower response received.")),

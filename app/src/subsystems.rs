@@ -16,9 +16,9 @@ use std::sync::Arc;
 use tokio::sync::mpsc::Receiver;
 use tracing::error;
 
-use crate::config::{Module, ModuleConfig};
+use crate::config::ModuleConfig;
 use crate::errors::{MainResult, SubsystemError, SubsystemResult};
-use crate::models::{LocalDeviceId, MutPeerState, PeerInfo, PeerManagementArgs, RemoteDeviceId};
+use crate::models::{LocalDeviceId, MutPeerState, PeerManagementArgs, RemoteDeviceId};
 
 use peer_communication::{listen_for_peer_connections, peer_management_subsystem};
 use qkd_communication::qkd_manager;
