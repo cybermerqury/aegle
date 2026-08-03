@@ -14,6 +14,8 @@ pub enum FollowerRequests {
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub enum FollowerResponse {
+    #[cfg(feature = "ec_simcommsys")]
+    RegisterCode(bool),
     Reveal(BitVec),
     Syndrome(BitVec),
     PrivacyAmplificationConfirmed(PAReply),

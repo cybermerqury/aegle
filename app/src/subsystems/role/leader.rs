@@ -120,7 +120,7 @@ fn create_pipeline(
     /// TODO Fix SCS base url passing.
     #[cfg(feature = "ec_simcommsys")]
     let ec_stage =
-        SetupSimCommSys::from_array(SCS_CODEC_ID, &PARITY_MATRIX, "http://localhost:8080")?;
+        SetupSimCommSys::from_array(SCS_CODEC_ID, &PARITY_MATRIX, "http://localhost:8000")?;
 
     let pipeline = pipeline.pipe(ec_stage);
 

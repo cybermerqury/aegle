@@ -330,7 +330,17 @@ impl KeyProcessor {
 
                     let matrix = ParityMatrix::from_array(&PARITY_MATRIX);
 
-                    self.scs_client.register(&code_name, &matrix)?;
+                    let is_success = self
+                        .scs_client
+                        .register(&code_name, &matrix)
+                        .inspect_err(|e| warn!("Failed to register code. Error: {e}"))
+                        .is_ok();
+
+                    let response = FollowerResponse::RegisterCode(is_success);
+
+                    self.send_msg(&response).await.inspect_err(|e| {
+                        warn!("Unable to send registration result. Error: {e:?}")
+                    })?;
                 }
                 FollowerRequests::Reveal(idx) => {
                     let revealed = idx

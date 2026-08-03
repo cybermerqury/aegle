@@ -5,15 +5,22 @@ use core::{
 };
 
 use bitvec::vec::BitVec;
-use tracing::warn;
+use tracing::{info, warn};
 
 use crate::client::SCSApi;
+
+enum FollowerPendingStep {
+    Register,
+    GetSyndrome,
+    DecodeKey,
+}
 
 pub struct SimCommSys {
     codec_id: String,
     key: Key<Reconciling>,
     client: SCSApi,
     syndrome: Option<BitVec>,
+    follower_next_step: FollowerPendingStep,
 }
 
 impl SimCommSys {
@@ -23,6 +30,7 @@ impl SimCommSys {
             key,
             client,
             syndrome: None,
+            follower_next_step: FollowerPendingStep::Register,
         }
     }
 }
@@ -34,23 +42,36 @@ impl PostProcessingStep for SimCommSys {
 
     fn step(&mut self) -> Result<PPStep<Self::Result, FollowerRequests>, PPError> {
         // TODO Move this to follower.
-        let response = self
-            .client
-            .calculate_syndrome(&self.codec_id, &self.key)
-            .map_err(|e| {
-                warn!("Calculate syndrome failed. Error: {e}");
-                PPError::new("Failed to calculate syndrome")
-            })?;
+        // let response = self
+        //     .client
+        //     .calculate_syndrome(&self.codec_id, &self.key)
+        //     .map_err(|e| {
+        //         warn!("Calculate syndrome failed. Error: {e}");
+        //         PPError::new("Failed to calculate syndrome")
+        //     })?;
 
-        Err(PPError::new(
-            "SimCommSys processing step to be implemented.",
-        ))
+        match self.follower_next_step {
+            FollowerPendingStep::Register => Ok(PPStep::GetUpdate(FollowerRequests::RegisterCode(
+                self.codec_id.clone(),
+            ))),
+            _ => Err(PPError::new(
+                "SimCommSys processing step to be implemented.",
+            )),
+        }
     }
 
-    fn update(&mut self, _: FollowerResponse) -> Result<(), PPError> {
-        Err(PPError::new(
-            "SimCommSys processing update to be implemented.",
-        ))
+    fn update(&mut self, response: FollowerResponse) -> Result<(), PPError> {
+        match response {
+            FollowerResponse::RegisterCode(true) => {
+                info!("Follower registered with SimCommSys successfully.");
+                self.follower_next_step = FollowerPendingStep::GetSyndrome;
+                Ok(())
+            }
+            FollowerResponse::RegisterCode(false) => Err(PPError::new(
+                "Follower SimCommSys code registration failed.",
+            )),
+            _ => Err(PPError::new("Unexpected follower response received.")),
+        }
     }
 
     fn finalize(self) -> Result<Key<Self::FinalStage>, PPError> {
