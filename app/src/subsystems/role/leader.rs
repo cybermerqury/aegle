@@ -110,17 +110,18 @@ fn create_pipeline(
 > {
     let pipeline = BEREstimation::new(key, 0.05, 0.95).pipe(SetupBerLimit::new(0.09));
 
-    #[cfg(all(feature = "ec_cascade", feature = "ec_simcommsys"))]
-    compile_error!(
-        "More than one error correction feature enabled. Choose one and disable the others."
-    );
-
-    #[cfg(feature = "ec_cascade")]
-    let ec_stage = SetupCascade::new(4);
-    /// TODO Fix SCS base url passing.
-    #[cfg(feature = "ec_simcommsys")]
-    let ec_stage =
-        SetupSimCommSys::from_array(SCS_CODEC_ID, &PARITY_MATRIX, "http://localhost:8000")?;
+    // TODO Fix SCS base url passing.
+    // Select the error correction stage to use by feature.
+    // If more than one error correction feature is enabled, fail to compile.
+    // If no feature is selected, also fail.
+    let ec_stage = cfg_select! {
+        all(not(rust_analyzer), feature = "ec_cascade", feature = "ec_simcommsys") => compile_error!(
+            "More than one error correction feature enabled. Choose one and disable the others."
+        ),
+        feature = "ec_cascade" => SetupCascade::new(4),
+        feature = "ec_simcommsys" => SetupSimCommSys::from_array(SCS_CODEC_ID, &PARITY_MATRIX, "http://localhost:8000")?,
+        _ => compile_error!("No error correction feature enabled. One must be chosen.")
+    };
 
     let pipeline = pipeline.pipe(ec_stage);
 

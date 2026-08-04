@@ -12,6 +12,11 @@ members = [
     "error-correction-simcommsys",
 ]
 
+default-members = [
+    "app",
+    "emulator"
+]
+
 [workspace.dependencies]
 bincode = { version = "1.3.3" }
 bitvec = { version = "1.0.1", features = ["serde", "std"] }
