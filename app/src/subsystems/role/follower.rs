@@ -2,27 +2,32 @@
 // SPDX-FileCopyrightText:  © 2024 - 2026 Merqury Cybersecurity Ltd <info@merqury.eu>
 
 use bitvec::vec::BitVec;
-use core::models::follower_comms::{FollowerRequests, FollowerResponse, PAReply};
-use core::models::parity_matrix::ParityMatrix;
-use core::spawn_subsystem;
-#[cfg(feature = "ec_simcommsys")]
-use ec_simcommsys::client::SCSApi;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io::Write;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{mpsc, oneshot};
-
-use core::key_state_machine::{Key, Reconciling, Secret, Sifted};
-use core::sync::tasks::{Monitor, TaskManager};
 use tracing::{debug, error, info, instrument, warn, Instrument};
+
+#[cfg(feature = "ec_simcommsys")]
+use ec_simcommsys::client::SCSApi;
+
+use core::{
+    key_state_machine::{Key, Reconciling, Secret, Sifted},
+    models::{
+        follower_comms::{FollowerRequests, FollowerResponse, PAReply},
+        {generator_matrix::GeneratorMatrix, parity_matrix::ParityMatrix},
+    },
+    spawn_subsystem,
+    sync::tasks::{Monitor, TaskManager},
+};
 
 use crate::communication::key_processing::{RegisterKey, RegisterReply};
 use crate::communication::parse::{read_message, send_message};
 use crate::communication::quic::QuinnStream;
 use crate::errors::{MainResult, SubsystemResult};
-use crate::models::matrices::PARITY_MATRIX;
+use crate::models::matrices::{GENERATOR_MATRIX, PARITY_MATRIX};
 use crate::models::{DeviceId, FullId, FullKeyId, KeyId, LocalDeviceId, PeerId};
 
 type NewKeyEntry = (
@@ -379,6 +384,18 @@ impl KeyProcessor {
                 }
                 #[cfg(feature = "ec_simcommsys")]
                 FollowerRequests::SCSSyndrome(code_id) => {
+                    use crate::models::matrices::WORD_SIZE;
+
+                    let gen_matrix = GeneratorMatrix::from_array(&GENERATOR_MATRIX);
+
+                    if key.get_interior_ref().len() % WORD_SIZE != 0 {
+                        warn!(
+                            "Key does not fit cleanly into word size. Word size: {}, key size: {}",
+                            WORD_SIZE,
+                            key.get_interior_ref().len()
+                        );
+                    }
+
                     let is_success = self
                         .scs_client
                         .calculate_syndrome(&code_id, &key)

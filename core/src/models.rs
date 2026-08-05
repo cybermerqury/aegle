@@ -2,9 +2,11 @@
 // SPDX-FileCopyrightText:  © 2024 - 2026 Merqury Cybersecurity Ltd <info@merqury.eu>
 
 pub mod follower_comms;
+pub mod generator_matrix;
 pub mod ids;
 pub mod matrix;
 pub mod parity_matrix;
+pub mod sparse_matrix;
 
 use bitvec::vec::BitVec;
 use uuid::Uuid;
