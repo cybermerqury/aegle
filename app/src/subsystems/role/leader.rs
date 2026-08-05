@@ -3,7 +3,7 @@
 
 use std::io::Write;
 use tokio::sync::mpsc::Receiver;
-use tracing::{error, info, instrument, warn, Instrument};
+use tracing::{debug, error, info, instrument, warn, Instrument};
 
 use core::{
     key_state_machine::{Key, Reconciling, Secret, Sifted},
@@ -20,11 +20,11 @@ use crate::{
         parse::{read_message, send_message},
         quic::QuinnStream,
     },
-    errors::SubsystemResult,
+    errors::{MainResult, SubsystemError, SubsystemResult},
     models::{
         ber_estimation::{BEREstimation, SetupBerLimit},
         privacy_amplification::SetupPrivacyAmplification,
-        {FullKeyId, LocalDeviceId, PeerId},
+        FullKeyId, LocalDeviceId, PeerId,
     },
 };
 
@@ -118,14 +118,13 @@ fn create_pipeline(
         all(not(rust_analyzer), feature = "ec_cascade", feature = "ec_simcommsys") => compile_error!(
             "More than one error correction feature enabled. Choose one and disable the others."
         ),
-        feature = "ec_cascade" => SetupCascade::new(4),
         feature = "ec_simcommsys" => SetupSimCommSys::from_array(SCS_CODEC_ID, &PARITY_MATRIX, "http://localhost:8000")?,
+        feature = "ec_cascade" => SetupCascade::new(4),
         _ => compile_error!("No error correction feature enabled. One must be chosen.")
     };
 
-    let pipeline = pipeline.pipe(ec_stage);
+    let pipeline = pipeline.pipe(ec_stage).pipe(SetupPrivacyAmplification);
 
-    let pipeline = pipeline.pipe(SetupPrivacyAmplification);
     Ok(Box::new(pipeline))
 }
 
@@ -182,7 +181,7 @@ async fn process_key(connection: quinn::Connection, key: Key<Sifted>) {
     }
 
     info!("Starting post processing");
-    let mut cur_pipeline = match create_pipeline(key.verify().start_reconciliation()) {
+    let cur_pipeline = match create_pipeline(key.verify().start_reconciliation()) {
         Ok(pipeline) => pipeline,
         Err(e) => {
             error!("Failed to construct pipeline. Error: {e}");
@@ -190,63 +189,86 @@ async fn process_key(connection: quinn::Connection, key: Key<Sifted>) {
         }
     };
 
-    loop {
-        if let Some((pipeline, next_step)) = run_step(cur_pipeline).await {
-            cur_pipeline = pipeline;
-            match next_step {
-                Ok(PPStep::Result(_)) => {
-                    info!("Finished reconciling");
-                    break;
-                }
-                Ok(PPStep::GetUpdate(request)) => {
-                    if let Err(e) = send_message(stream, &request).await {
-                        warn!("Unable to send request to peer: {:?}", e);
-                        return;
-                    }
-                    let update: FollowerResponse = match read_message(stream, buff).await {
-                        Ok(reply) => reply,
-                        Err(e) => {
-                            warn!("Unable to parse response: {:?}", e);
-                            return;
-                        }
-                    };
-                    if let Err(e) = cur_pipeline.update(update) {
-                        warn!("Error while processing response: {}", e);
-                        return;
-                    }
-                }
-                Ok(PPStep::Abort) => {
-                    info!("Aborting further post processing");
-                    return;
-                }
-                Err(e) => {
-                    warn!("Error doing reconciliation!: {}", e);
-                    return;
-                }
-            }
-        } else {
-            warn!("Error joining tokio task when running step");
+    let key = match perform_post_processing(cur_pipeline, stream, buff).await {
+        Ok(key) => key,
+        Err(e) => {
+            warn!("Post-processing failed. Error: {e:?}");
             return;
         }
+    };
+
+    debug!("Saving secret key");
+
+    let mut file = std::fs::OpenOptions::new()
+        .append(true)
+        .create(true)
+        .open(format!("{}.csv", key.device_id()))
+        .unwrap();
+    let _ = file.write_all(
+        format!(
+            "{},{}\n",
+            key.key_id(),
+            key.get_interior_ref()
+                .iter()
+                .by_vals()
+                .map(|b| if b { "1" } else { "0" })
+                .collect::<String>()
+        )
+        .as_bytes(),
+    );
+    info!("Key reconciled");
+}
+
+#[instrument(skip_all)]
+async fn perform_post_processing<PP>(
+    mut cur_pipeline: Box<PP>,
+    stream: &mut QuinnStream,
+    buff: &mut [u8],
+) -> MainResult<Key<Secret>>
+where
+    PP: PostProcessingStep<InitialStage = Reconciling, FinalStage = Secret, Result = ()> + 'static,
+{
+    loop {
+        let Some((pipeline, next_step)) = run_step(cur_pipeline).await else {
+            let err_msg = SubsystemError::new("Error joining tokio task when running step");
+            return Err(err_msg.into());
+        };
+
+        cur_pipeline = pipeline;
+        match next_step {
+            Ok(PPStep::Result(_)) => {
+                info!("Finished reconciling");
+                break;
+            }
+            Ok(PPStep::GetUpdate(request)) => {
+                send_message(stream, &request)
+                    .await
+                    .inspect_err(|e| warn!("Unable to send request to peer: {:?}", e))?;
+
+                #[cfg(debug_assertions)]
+                debug!("Sent follower request {request:?}");
+
+                let update = read_message(stream, buff)
+                    .await
+                    .inspect_err(|e| warn!("Unable to parse response: {:?}", e))?;
+
+                cur_pipeline
+                    .update(update)
+                    .inspect_err(|e| warn!("Error while processing response: {}", e))?;
+            }
+            Ok(PPStep::Abort) => {
+                let err_msg = SubsystemError::new("Aborting further post-processing");
+                return Err(err_msg.into());
+            }
+            Err(e) => {
+                let err_msg =
+                    SubsystemError::new(format!("Error doing reconciliation! Error: {e}"));
+                return Err(err_msg.into());
+            }
+        }
     }
-    if let Ok(key) = cur_pipeline.finalize() {
-        let mut file = std::fs::OpenOptions::new()
-            .append(true)
-            .create(true)
-            .open(format!("{}.csv", key.device_id()))
-            .unwrap();
-        let _ = file.write_all(
-            format!(
-                "{},{}\n",
-                key.key_id(),
-                key.get_interior_ref()
-                    .iter()
-                    .by_vals()
-                    .map(|b| if b { "1" } else { "0" })
-                    .collect::<String>()
-            )
-            .as_bytes(),
-        );
-        info!("Key reconciled");
-    }
+
+    let key = cur_pipeline.finalize()?;
+
+    Ok(key)
 }

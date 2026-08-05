@@ -23,7 +23,7 @@ where
     T: serde::Deserialize<'a>,
 {
     let n: usize = stream.read_len().await?.try_into()?;
-    let bytes = stream.read_exact(buff[..n].as_mut()).await?;
+    let bytes = stream.read(buff).await?;
     Ok(from_bytes(bytes)?)
 }
 

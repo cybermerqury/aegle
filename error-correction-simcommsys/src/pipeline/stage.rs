@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+// SPDX-FileCopyrightText:  © 2024 - 2026 Merqury Cybersecurity Ltd <info@merqury.eu>
+
 use core::{
     key_state_machine::{Key, Reconciled, Reconciling},
     models::follower_comms::{FollowerRequests, FollowerResponse},
@@ -5,7 +8,7 @@ use core::{
 };
 
 use bitvec::vec::BitVec;
-use tracing::{info, warn};
+use tracing::info;
 
 use crate::client::SCSApi;
 

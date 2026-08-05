@@ -16,7 +16,7 @@ use tokio::sync::{mpsc, oneshot};
 
 use core::key_state_machine::{Key, Reconciling, Secret, Sifted};
 use core::sync::tasks::{Monitor, TaskManager};
-use tracing::{error, info, instrument, warn, Instrument};
+use tracing::{debug, error, info, instrument, warn, Instrument};
 
 use crate::communication::key_processing::{RegisterKey, RegisterReply};
 use crate::communication::parse::{read_message, send_message};
@@ -269,16 +269,19 @@ impl KeyProcessor {
         let key = key.verify().start_reconciliation();
 
         let secret_key = match self.construct_secret_key(key).await {
-            Ok(Some(secret_key)) => secret_key,
+            Ok(Some(secret_key)) => {
+                let response = FollowerResponse::PrivacyAmplificationConfirmed(PAReply::Confirmed);
+                if let Err(e) = self.send_msg(&response).await {
+                    warn!("Unable to send privacy amplication confirmation. Error: {e:?}");
+                    return;
+                }
+                secret_key
+            }
             Ok(None) => {
-                warn!("Cannot perform privacy amplification");
+                warn!("Cannot perform privacy amplification.");
 
-                if let Err(e) = self
-                    .send_msg(&FollowerResponse::PrivacyAmplificationConfirmed(
-                        PAReply::Error,
-                    ))
-                    .await
-                {
+                let response = FollowerResponse::PrivacyAmplificationConfirmed(PAReply::Error);
+                if let Err(e) = self.send_msg(&response).await {
                     warn!("Unable to send PA error to peer: {:?}", e);
                 }
                 return;
@@ -310,6 +313,7 @@ impl KeyProcessor {
         info!("Post processing finished");
     }
 
+    #[instrument(skip_all)]
     async fn construct_secret_key(
         &mut self,
         mut key: Key<Reconciling>,
@@ -322,6 +326,9 @@ impl KeyProcessor {
                 .recv_msg(buff)
                 .await
                 .inspect_err(|e| warn!("Error processing request: {e:?}"))?;
+
+            #[cfg(debug_assertions)]
+            debug!("Received leader request {request:?}");
 
             match request {
                 FollowerRequests::Reveal(idx) => {
@@ -383,7 +390,7 @@ impl KeyProcessor {
                     self.send_msg(&response).await.inspect_err(|e| {
                         warn!("Unable to send syndrome calculation result. Error: {e:?}")
                     })?;
-                } // _ => todo!("Should not reach this."),
+                }
             }
         }
     }
