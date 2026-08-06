@@ -27,24 +27,26 @@ impl GeneratorMatrix {
         })
     }
 
-    pub fn generate_codeword(&self, message: &BitSlice) -> Option<BitVec> {
-        if message.len() != self.inner.factors_len() {
+    pub fn generate_codeword(&self, message: &BitSlice, codeword_len: usize) -> Option<BitVec> {
+        let factors_count = self.inner.factors_len();
+
+        if message.len() != factors_count {
+            tracing::warn!(
+                "Mismatch between word length and factors. Word length: {}, factor_len: {}",
+                message.len(),
+                factors_count
+            );
             return None;
         }
 
-        let mut codeword = bitvec![0; self.inner.factors_len()];
+        let mut codeword = bitvec![0; codeword_len];
 
-        for (factor, neighbours) in self.inner.iter_factors() {
-            codeword.set(
-                *factor,
-                neighbours
-                    .iter()
-                    .map(|&idx| message[idx])
-                    .collect::<BitVec>()
-                    .count_ones()
-                    % 2
-                    == 1,
-            );
+        for (&factor, neighbours) in self.inner.iter_factors() {
+            let msg_bit = message.get(factor)?;
+
+            for &gen_bit in neighbours {
+                *codeword.get_mut(gen_bit)? ^= *msg_bit;
+            }
         }
 
         Some(codeword)

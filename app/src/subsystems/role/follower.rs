@@ -14,6 +14,7 @@ use tracing::{debug, error, info, instrument, warn, Instrument};
 use ec_simcommsys::client::SCSApi;
 
 use core::{
+    error::{Error, ErrorKind},
     key_state_machine::{Key, Reconciling, Secret, Sifted},
     models::{
         follower_comms::{FollowerRequests, FollowerResponse, PAReply},
@@ -27,7 +28,7 @@ use crate::communication::key_processing::{RegisterKey, RegisterReply};
 use crate::communication::parse::{read_message, send_message};
 use crate::communication::quic::QuinnStream;
 use crate::errors::{MainResult, SubsystemResult};
-use crate::models::matrices::{GENERATOR_MATRIX, PARITY_MATRIX};
+use crate::models::matrices::{CODEWORD_SIZE, GENERATOR_MATRIX, PARITY_MATRIX, WORD_SIZE};
 use crate::models::{DeviceId, FullId, FullKeyId, KeyId, LocalDeviceId, PeerId};
 
 type NewKeyEntry = (
@@ -384,8 +385,6 @@ impl KeyProcessor {
                 }
                 #[cfg(feature = "ec_simcommsys")]
                 FollowerRequests::SCSSyndrome(code_id) => {
-                    use crate::models::matrices::WORD_SIZE;
-
                     let gen_matrix = GeneratorMatrix::from_array(&GENERATOR_MATRIX);
 
                     if key.get_interior_ref().len() % WORD_SIZE != 0 {
@@ -394,13 +393,45 @@ impl KeyProcessor {
                             WORD_SIZE,
                             key.get_interior_ref().len()
                         );
+                    } else {
+                        debug!("Key divisible into chunk length.");
                     }
 
-                    let is_success = self
-                        .scs_client
-                        .calculate_syndrome(&code_id, &key)
-                        .inspect_err(|e| warn!("Calculate syndrome failed. Error: {e}"))
-                        .is_ok();
+                    let word_iter = key.get_interior_ref().chunks_exact(WORD_SIZE);
+                    let remainder = word_iter.remainder().to_bitvec();
+
+                    debug!(
+                        "Chunked key into {WORD_SIZE}-bit words. Remainder: {} bits",
+                        remainder.len()
+                    );
+
+                    let codewords = word_iter
+                        .map(|word| {
+                            let codeword = gen_matrix
+                                .generate_codeword(word, CODEWORD_SIZE)
+                                .ok_or_else(|| {
+                                    Error::new(
+                                        ErrorKind::InconsistentData,
+                                        "Failed to construct codeword.",
+                                    )
+                                })?;
+
+                            MainResult::Ok(codeword)
+                        })
+                        .collect::<Result<Vec<_>, _>>()?;
+
+                    for codeword in &codewords {
+                        debug!("Getting syndrome for codeword {codeword:?}");
+
+                        let sample_codeword = codewords.first().unwrap();
+
+                        let syndrome = self
+                            .scs_client
+                            .calculate_syndrome(&code_id, &sample_codeword)
+                            .inspect_err(|e| warn!("Syndrome calculation failed. Error: {e}"))?;
+
+                        debug!("Syndrome for codeword {codeword}: {syndrome}");
+                    }
 
                     let response = FollowerResponse::SCSSyndrome(None);
 

@@ -7,7 +7,7 @@ use tracing::{debug, error, info, instrument, warn, Instrument};
 
 use core::{
     key_state_machine::{Key, Reconciling, Secret, Sifted},
-    models::follower_comms::{FollowerRequests, FollowerResponse},
+    models::follower_comms::FollowerRequests,
     sync::tasks::Monitor,
     traits::{PPError, PPStep, PostProcessingStep},
 };

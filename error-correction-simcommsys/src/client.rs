@@ -3,6 +3,7 @@
 
 use std::format;
 
+use bitvec::vec::BitVec;
 // use reqwest::{Client, ClientBuilder};
 use serde::Deserialize;
 use serde_json::json;
@@ -44,6 +45,9 @@ impl SCSApi {
 
         let config = parity_matrix_to_codec(matrix)?;
 
+        #[cfg(debug_assertions)]
+        debug!("Generated config: {config}");
+
         let response = self.client.post(url).send_json(&json!({
             "codec_id": codec_name,
             "config": &config.trim()
@@ -71,28 +75,33 @@ impl SCSApi {
         }
     }
 
-    pub fn calculate_syndrome(&self, codec_name: &str, codeword: &Key<Reconciling>) -> Result<()> {
+    pub fn calculate_syndrome(&self, codec_name: &str, codeword: &BitVec) -> Result<BitVec> {
         let url = self.url(Self::CALCULATE_SYNDROME_URL);
 
-        let codeword = codeword
-            .get_interior_ref()
-            .iter()
-            .by_vals()
-            .map(u32::from)
-            .collect::<Vec<_>>();
+        let codeword = codeword.iter().by_vals().map(u8::from).collect::<Vec<_>>();
 
         let payload = json!({
             "codec_id": codec_name,
             "codeword": codeword
         });
 
-        debug!("Sending 'calculate_syndrome' request. Payload: {payload}");
-
         let response = self.client.post(url).send_json(payload)?;
 
-        debug!("Response status: {}", response.status());
+        let body = response
+            .into_body()
+            .read_json::<CalculateSyndromeResponse>()?;
 
-        Ok(())
+        #[cfg(debug_assertions)]
+        debug!("Syndrome response: {body:?}");
+
+        match body {
+            CalculateSyndromeResponse::Ok { syndrome } => {
+                Ok(syndrome.into_iter().map(|bit| bit != 0).collect())
+            }
+            CalculateSyndromeResponse::Err(ErrorResponse { message }) => {
+                Err(Error::new(ErrorKind::Network, message))
+            }
+        }
     }
 
     fn url(&self, additional_url: &str) -> String {
@@ -100,7 +109,7 @@ impl SCSApi {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct ErrorResponse {
     #[serde(rename = "detail")]
     message: String,
@@ -110,6 +119,14 @@ pub struct ErrorResponse {
 #[serde(untagged)]
 pub enum RegisterResponse {
     Ok { success: bool, message: String },
+    Err(ErrorResponse),
+}
+
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Deserialize)]
+#[serde(untagged)]
+pub enum CalculateSyndromeResponse {
+    Ok { syndrome: Vec<u8> },
     Err(ErrorResponse),
 }
 
@@ -149,11 +166,11 @@ pub fn parity_matrix_to_codec(matrix: &ParityMatrix) -> Result<String> {
         .map(|(_, v)| v.iter().map(|i| i + 1))
         .map(|col| {
             let mut buffer = col.collect::<Vec<_>>();
-            if buffer.len() < max_col_weight {
-                for _ in 0..(max_col_weight - buffer.len()) {
-                    buffer.push(0);
-                }
-            }
+            // if buffer.len() < max_col_weight {
+            //     for _ in 0..(max_col_weight - buffer.len()) {
+            //         buffer.push(0);
+            //     }
+            // }
             buffer
         })
         .collect::<Vec<_>>();
@@ -181,49 +198,35 @@ pub fn parity_matrix_to_codec(matrix: &ParityMatrix) -> Result<String> {
         col_weights_str.push_str(format!("{}\n", col_line.trim_end()).as_str());
     }
 
-    let codec_config = format!(
-        r#"
-        # Codec
-        ldpc<gf2,double>
-        # Version
-        5
-        # SPA type (trad|gdl)
-        gdl
-        # Number of iterations
-        50
-        # Clipping method
-        zero
-        # Value of almostzero
-        1e-100
-        # Reduce generator matrix to REF?
-        1
-        # Length (n)
-        {length}
-        # Dimension (m)
-        {dimension}
-        # Max column weight
-        {max_col_weight}
-        # Max row weight
-        {max_row_weight}
-        # Non-zero values (ones|random|provided)
-        ones
-        # Column weight vector
-        {col_weight_vec_len}
-        {col_weight_vec}
-        # Row weight vector
-        {row_weight_vec_len}
-        {row_weight_vec}
-        # Non zero positions per col
-        {col_weights_str}
-        "#,
-        length = col_indices.len(),
-        dimension = row_indices.len(),
+    let mut codec_config = "# Codec\nldpc<gf2,double>\n".to_string();
+
+    codec_config.push_str("# Version\n5\n");
+    codec_config.push_str("# SPA type (trad|gdl)\ngdl\n");
+    codec_config.push_str("# Number of iterations\n50\n");
+    codec_config.push_str("# Clipping method\nzero\n");
+    codec_config.push_str("# Value of almostzero\n1e-100\n");
+    codec_config.push_str("# Reduce generator matrix to REF?\n1\n");
+
+    codec_config.push_str(&format!("# Length (n)\n{}\n", col_indices.len()));
+    codec_config.push_str(&format!("# Dimension (m)\n{}\n", row_indices.len()));
+    codec_config.push_str(&format!("# Max column weight\n{max_col_weight}\n"));
+    codec_config.push_str(&format!("# Max row weight\n{max_row_weight}\n"));
+
+    codec_config.push_str("# Non-zero values (ones|random|provided)\nones\n");
+
+    codec_config.push_str(&format!(
+        "# Column weight vector\n{col_weight_vec_len}\n{col_weight_vec}\n",
         col_weight_vec_len = col_weights_vec.len(),
-        col_weight_vec = col_weights_vec.join(" "),
+        col_weight_vec = col_weights_vec.join(" ")
+    ));
+    codec_config.push_str(&format!(
+        "# Row weight vector\n{row_weight_vec_len}\n{row_weight_vec}\n",
         row_weight_vec_len = row_weights_vec.len(),
         row_weight_vec = row_weights_vec.join(" "),
-        col_weights_str = col_weights_str
-    );
+    ));
+    codec_config.push_str(&format!(
+        "# Non zero positions per col\n{col_weights_str}\n",
+    ));
 
     Ok(codec_config)
 }
