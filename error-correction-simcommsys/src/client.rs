@@ -3,7 +3,7 @@
 
 use std::format;
 
-use bitvec::vec::BitVec;
+use bitvec::{slice::BitSlice, vec::BitVec};
 // use reqwest::{Client, ClientBuilder};
 use serde::Deserialize;
 use serde_json::json;
@@ -12,7 +12,6 @@ use ureq::Agent;
 
 use core::{
     error::{Error, ErrorKind, Result},
-    key_state_machine::{Key, Reconciling},
     models::parity_matrix::ParityMatrix,
 };
 
@@ -68,14 +67,12 @@ impl SCSApi {
             RegisterResponse::Ok {
                 success: false,
                 message,
-            }
-            | RegisterResponse::Err(ErrorResponse { message }) => {
-                Err(Error::new(ErrorKind::Network, message))
-            }
+            } => Err(Error::new(ErrorKind::Network, message)),
+            RegisterResponse::Err(e) => Err(e.into()),
         }
     }
 
-    pub fn calculate_syndrome(&self, codec_name: &str, codeword: &BitVec) -> Result<BitVec> {
+    pub fn calculate_syndrome(&self, codec_name: &str, codeword: &BitSlice) -> Result<BitVec> {
         let url = self.url(Self::CALCULATE_SYNDROME_URL);
 
         let codeword = codeword.iter().by_vals().map(u8::from).collect::<Vec<_>>();
@@ -98,9 +95,44 @@ impl SCSApi {
             CalculateSyndromeResponse::Ok { syndrome } => {
                 Ok(syndrome.into_iter().map(|bit| bit != 0).collect())
             }
-            CalculateSyndromeResponse::Err(ErrorResponse { message }) => {
-                Err(Error::new(ErrorKind::Network, message))
+            CalculateSyndromeResponse::Err(e) => Err(e.into()),
+        }
+    }
+
+    pub fn decode(
+        &self,
+        codec_name: &str,
+        codeword: &BitSlice,
+        syndrome: &BitSlice,
+    ) -> Result<BitVec> {
+        /// Binary code so set to 2.
+        const Q: usize = 2;
+
+        const ALMOST_ZERO: f32 = 1e-10;
+
+        let url = self.url(Self::CALCULATE_SYNDROME_URL);
+
+        let codeword = codeword.iter().by_vals().map(u8::from).collect::<Vec<_>>();
+
+        let syndrome = syndrome.iter().by_vals().map(u8::from).collect::<Vec<_>>();
+
+        let payload = json!({
+            "codec_id": codec_name,
+            "noisy_codeword": codeword,
+            "syndrome": syndrome,
+            "q": Q,
+            "almostzero": ALMOST_ZERO
+        });
+
+        let response = self.client.post(url).send_json(payload)?;
+
+        let body = response.into_body().read_json::<DecodeResponse>()?;
+
+        match body {
+            DecodeResponse::Ok { corrected_syndrome } => {
+                Ok(corrected_syndrome.into_iter().map(|bit| bit != 0).collect())
             }
+            DecodeResponse::Err(e) => Err(e.into()),
         }
     }
 
@@ -115,6 +147,12 @@ pub struct ErrorResponse {
     message: String,
 }
 
+impl From<ErrorResponse> for Error {
+    fn from(value: ErrorResponse) -> Self {
+        Self::new(ErrorKind::Network, value.message)
+    }
+}
+
 #[derive(Deserialize)]
 #[serde(untagged)]
 pub enum RegisterResponse {
@@ -127,6 +165,14 @@ pub enum RegisterResponse {
 #[serde(untagged)]
 pub enum CalculateSyndromeResponse {
     Ok { syndrome: Vec<u8> },
+    Err(ErrorResponse),
+}
+
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Deserialize)]
+#[serde(untagged)]
+pub enum DecodeResponse {
+    Ok { corrected_syndrome: Vec<u8> },
     Err(ErrorResponse),
 }
 

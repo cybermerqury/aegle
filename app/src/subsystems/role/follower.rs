@@ -401,7 +401,8 @@ impl KeyProcessor {
                     let remainder = word_iter.remainder().to_bitvec();
 
                     debug!(
-                        "Chunked key into {WORD_SIZE}-bit words. Remainder: {} bits",
+                        "Key of {} bits chunked into {WORD_SIZE}-bit words. Remainder: {} bits",
+                        key.get_interior_ref().len(),
                         remainder.len()
                     );
 
@@ -420,20 +421,20 @@ impl KeyProcessor {
                         })
                         .collect::<Result<Vec<_>, _>>()?;
 
+                    let mut syndromes = Vec::with_capacity(codewords.len());
+
                     for codeword in &codewords {
-                        debug!("Getting syndrome for codeword {codeword:?}");
-
-                        let sample_codeword = codewords.first().unwrap();
-
                         let syndrome = self
                             .scs_client
-                            .calculate_syndrome(&code_id, &sample_codeword)
+                            .calculate_syndrome(&code_id, &codeword)
                             .inspect_err(|e| warn!("Syndrome calculation failed. Error: {e}"))?;
 
                         debug!("Syndrome for codeword {codeword}: {syndrome}");
+
+                        syndromes.push(syndrome)
                     }
 
-                    let response = FollowerResponse::SCSSyndrome(None);
+                    let response = FollowerResponse::SCSSyndrome(Some(syndromes));
 
                     self.send_msg(&response).await.inspect_err(|e| {
                         warn!("Unable to send syndrome calculation result. Error: {e:?}")

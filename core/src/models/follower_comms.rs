@@ -23,7 +23,7 @@ pub enum FollowerResponse {
     #[cfg(feature = "ec_simcommsys")]
     SCSRegisterCode(bool),
     #[cfg(feature = "ec_simcommsys")]
-    SCSSyndrome(Option<BitVec>),
+    SCSSyndrome(Option<Vec<BitVec>>),
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
