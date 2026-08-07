@@ -181,6 +181,20 @@ impl PostProcessingStep for SimCommSys {
     }
 
     fn finalize(self) -> Result<Key<Self::FinalStage>, PPError> {
-        Err(PPError::new("SimCommSys finalization to be implemented."))
+        let (reconciled_key, syndromes) = match (self.reconciled_key, self.follower_syndromes) {
+            (Some(key), Some(syndromes)) => Ok((key, syndromes)),
+            (Some(_), None) => {
+                unreachable!("Reconciled key present but syndromes not set for some reason.")
+            }
+            (None, Some(_)) => Err(PPError::new("Reconciled key not yet generated")),
+            (None, None) => Err(PPError::new("No reconciled key or syndromes generated")),
+        }?;
+
+        let key_len = reconciled_key.len();
+        let leaked_bits = syndromes.into_iter().flatten().count();
+
+        info!("Reconciling {key_len}-bit key with {leaked_bits} leaked bits.");
+
+        Ok(self.key.reconcile(reconciled_key.into(), leaked_bits))
     }
 }
