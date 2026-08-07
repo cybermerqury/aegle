@@ -148,9 +148,6 @@ impl PostProcessingStep for SimCommSys {
 
                 Ok(PPStep::Result(()))
             }
-            _ => Err(PPError::new(
-                "SimCommSys processing step to be implemented.",
-            )),
         }
     }
 
@@ -195,6 +192,10 @@ impl PostProcessingStep for SimCommSys {
 
         info!("Reconciling {key_len}-bit key with {leaked_bits} leaked bits.");
 
-        Ok(self.key.reconcile(reconciled_key.into(), leaked_bits))
+        // TODO: Verify validity of leaked bits.
+        // No leaked bits were sent since the codewords were generated on each side. Is this correct?
+        // TODO: Reconciled keys frequently do not match. Why?
+        // TODO: Create new LDPC block size and test against those.
+        Ok(self.key.reconcile(reconciled_key.into(), 0))
     }
 }

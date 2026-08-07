@@ -298,6 +298,8 @@ impl KeyProcessor {
             }
         };
 
+        debug!("Saving secret key.");
+
         let mut file = std::fs::OpenOptions::new()
             .append(true)
             .create(true)

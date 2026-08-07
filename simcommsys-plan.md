@@ -1,3 +1,4 @@
+Planned concept:
 ```mermaid
 sequenceDiagram
     title Reconciliation flow
@@ -39,6 +40,56 @@ sequenceDiagram
 
     L ->>+ SCSL : Send `/decode`
     SCSL ->>- L : Return corrected key
+
+    L ->>- L : Finalise reconciliation
+
+    end
+```
+
+Actual impl:
+```mermaid
+sequenceDiagram
+    title Reconciliation flow
+
+    box Alice
+    participant SCSL as SCS
+    participant L as Leader
+    end
+    
+    box Bob
+    participant F as Follower
+    participant SCSF as SCS
+    end
+
+    loop Main loop
+    L ->>+ L : Key received for reconciliation
+
+    L ->> L : Decide on LDPC code
+
+    L ->>+ SCSL : Register LDPC code
+    SCSL ->>- L : Success
+
+    L ->>+ F : Send chosen LDPC code
+    Note over L,F : Only code ID is sent in each request. <br/> LDPC codes and their IDs are pre-shared.
+    F ->>+ SCSF : Register chosen LDPC code
+    SCSF ->>- F : Success
+    F ->>- L : Respond with success
+
+    L ->>+ F : Get syndromes
+    F ->> F : Chunk key into multiple codewords
+    loop for each codeword
+    F ->>+ SCSF : Send `/calculate-syndrome`
+    SCSF ->>- F : Return syndrome
+    end
+    F ->>- L : Get syndromes
+
+    L ->> L : Chunk key into multiple codewords
+    loop for each codeword
+    L ->>+ SCSL : Send `/decode`
+    SCSL ->>- L : Return corrected key
+    end
+
+    L ->> L : Splice codewords into reconciled key
 
     L ->>- L : Finalise reconciliation
 
