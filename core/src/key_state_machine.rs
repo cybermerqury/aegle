@@ -3,10 +3,13 @@
 
 use std::f64;
 
-use bitvec::vec::BitVec;
+use bitvec::{slice::BitSlice, vec::BitVec};
 use serde::{Deserialize, Serialize};
 
-use crate::models::{DeviceId, KeyId, Toeplitz};
+use crate::{
+    error::{Error, ErrorKind},
+    models::{generator_matrix::GeneratorMatrix, DeviceId, KeyId, Toeplitz},
+};
 
 #[derive(Serialize, Deserialize, Default)]
 pub struct Sifted {
@@ -155,6 +158,36 @@ impl Key<Reconciling> {
                 actual_error: (error as f64) / flen,
             },
         }
+    }
+
+    /// Generates codewords using the given generator matrix and parameters.
+    /// Returns the codewords and remaining bits (if any) which couldn't be converted.
+    pub fn codeword_chunks(
+        &self,
+        word_len: usize,
+        codeword_len: usize,
+        gen_matrix: &GeneratorMatrix,
+    ) -> crate::error::Result<(Vec<BitVec>, Option<&BitSlice>)> {
+        let word_iter = self.get_interior_ref().chunks_exact(word_len);
+        let remainder = word_iter.remainder();
+        let remainder = match remainder.is_empty() {
+            true => None,
+            false => Some(remainder),
+        };
+
+        let codewords = word_iter
+            .map(|word| {
+                let codeword = gen_matrix
+                    .generate_codeword(word, codeword_len)
+                    .ok_or_else(|| {
+                        Error::new(ErrorKind::InconsistentData, "Failed to construct codeword.")
+                    })?;
+
+                crate::error::Result::Ok(codeword)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok((codewords, remainder))
     }
 
     pub fn reveal(&mut self, idx: usize) -> Option<bool> {

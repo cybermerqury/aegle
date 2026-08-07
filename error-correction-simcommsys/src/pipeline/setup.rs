@@ -3,10 +3,9 @@
 
 use core::{
     key_state_machine::Key,
-    models::parity_matrix::ParityMatrix,
+    models::{generator_matrix::GeneratorMatrix, parity_matrix::ParityMatrix},
     traits::{PostProcessingSetup, PostProcessingStep},
 };
-use std::path::Path;
 
 use tracing::{debug, error};
 
@@ -16,33 +15,30 @@ pub struct SetupSimCommSys {
     codec_id: String,
     matrix: ParityMatrix,
     client: SCSApi,
+    word_size: usize,
+    codeword_size: usize,
+    generator_matrix: GeneratorMatrix,
 }
 
 impl SetupSimCommSys {
-    pub fn from_array<T>(
+    pub fn new(
         codec_id: &str,
-        matrix_array: &[T],
+        parity_matrix: ParityMatrix,
         base_url: &str,
-    ) -> core::error::Result<Self>
-    where
-        T: AsRef<[u8]>,
-    {
+        word_size: usize,
+        codeword_size: usize,
+        generator_matrix: GeneratorMatrix,
+    ) -> core::error::Result<Self> {
         let client = SCSApi::new(base_url)?;
 
         Ok(Self {
             codec_id: codec_id.to_string(),
-            matrix: ParityMatrix::from_array(matrix_array),
+            matrix: parity_matrix,
+            word_size,
+            codeword_size,
+            generator_matrix,
             client,
         })
-    }
-
-    pub fn from_file(codec_id: &str, matrix_filepath: &Path, client: SCSApi) -> Self {
-        // TODO - Remove unwrap.
-        Self {
-            codec_id: codec_id.to_string(),
-            matrix: ParityMatrix::from_alist(matrix_filepath).unwrap(),
-            client,
-        }
     }
 
     /// Register this setup with simcommsys.
@@ -68,10 +64,18 @@ impl PostProcessingSetup for SetupSimCommSys {
     fn setup(
         self,
         key: Key<Self::InitialStage>,
-        _: Self::SetupArgs,
+        error_rate: Self::SetupArgs,
     ) -> Result<Self::Worker, Self::SetupErr> {
         self.register_with_scs()?;
 
-        Ok(SimCommSys::new(self.codec_id, key, self.client))
+        Ok(SimCommSys::new(
+            error_rate,
+            self.codec_id,
+            self.word_size,
+            self.codeword_size,
+            self.generator_matrix,
+            key,
+            self.client,
+        ))
     }
 }

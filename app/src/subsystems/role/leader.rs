@@ -1,19 +1,23 @@
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 // SPDX-FileCopyrightText:  © 2024 - 2026 Merqury Cybersecurity Ltd <info@merqury.eu>
 
+#[cfg(feature = "ec_simcommsys")]
+use core::models::generator_matrix::GeneratorMatrix;
 use std::io::Write;
 use tokio::sync::mpsc::Receiver;
 use tracing::{debug, error, info, instrument, warn, Instrument};
 
 use core::{
     key_state_machine::{Key, Reconciling, Secret, Sifted},
-    models::follower_comms::FollowerRequests,
+    models::{follower_comms::FollowerRequests, parity_matrix::ParityMatrix},
     sync::tasks::Monitor,
     traits::{PPError, PPStep, PostProcessingStep},
 };
 
 #[cfg(feature = "ec_simcommsys")]
-use crate::models::matrices::{PARITY_MATRIX, SCS_CODEC_ID};
+use crate::models::matrices::{
+    CODEWORD_SIZE, GENERATOR_MATRIX, PARITY_MATRIX, SCS_CODEC_ID, WORD_SIZE,
+};
 use crate::{
     communication::{
         key_processing::{RegisterKey, RegisterReply},
@@ -103,6 +107,21 @@ async fn handle_new_key(
     Ok(())
 }
 
+#[cfg(feature = "ec_simcommsys")]
+fn create_simcommsys_stage() -> core::error::Result<SetupSimCommSys> {
+    let parity_matrix = ParityMatrix::from_array(&PARITY_MATRIX);
+    let generator_matrix = GeneratorMatrix::from_array(&GENERATOR_MATRIX);
+
+    SetupSimCommSys::new(
+        SCS_CODEC_ID,
+        parity_matrix,
+        "http://localhost:8000",
+        WORD_SIZE,
+        CODEWORD_SIZE,
+        generator_matrix,
+    )
+}
+
 fn create_pipeline(
     key: Key<Reconciling>,
 ) -> core::error::Result<
@@ -114,11 +133,12 @@ fn create_pipeline(
     // Select the error correction stage to use by feature.
     // If more than one error correction feature is enabled, fail to compile.
     // If no feature is selected, also fail.
+    // Note: The `not(rust_analyzer)` expression prevents the linter complaining about linting with all features enabled.
     let ec_stage = cfg_select! {
         all(not(rust_analyzer), feature = "ec_cascade", feature = "ec_simcommsys") => compile_error!(
             "More than one error correction feature enabled. Choose one and disable the others."
         ),
-        feature = "ec_simcommsys" => SetupSimCommSys::from_array(SCS_CODEC_ID, &PARITY_MATRIX, "http://localhost:8000")?,
+        feature = "ec_simcommsys" => create_simcommsys_stage()?,
         feature = "ec_cascade" => SetupCascade::new(4),
         _ => compile_error!("No error correction feature enabled. One must be chosen.")
     };

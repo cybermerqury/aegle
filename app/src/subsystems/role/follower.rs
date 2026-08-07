@@ -397,29 +397,16 @@ impl KeyProcessor {
                         debug!("Key divisible into chunk length.");
                     }
 
-                    let word_iter = key.get_interior_ref().chunks_exact(WORD_SIZE);
-                    let remainder = word_iter.remainder().to_bitvec();
+                    let (codewords, remainder) =
+                        key.codeword_chunks(WORD_SIZE, CODEWORD_SIZE, &gen_matrix)?;
 
-                    debug!(
-                        "Key of {} bits chunked into {WORD_SIZE}-bit words. Remainder: {} bits",
-                        key.get_interior_ref().len(),
-                        remainder.len()
-                    );
-
-                    let codewords = word_iter
-                        .map(|word| {
-                            let codeword = gen_matrix
-                                .generate_codeword(word, CODEWORD_SIZE)
-                                .ok_or_else(|| {
-                                    Error::new(
-                                        ErrorKind::InconsistentData,
-                                        "Failed to construct codeword.",
-                                    )
-                                })?;
-
-                            MainResult::Ok(codeword)
-                        })
-                        .collect::<Result<Vec<_>, _>>()?;
+                    if let Some(remainder) = remainder {
+                        debug!(
+                            "Key of {} bits chunked into {WORD_SIZE}-bit words. Remainder: {} bits",
+                            key.get_interior_ref().len(),
+                            remainder.len()
+                        );
+                    }
 
                     let mut syndromes = Vec::with_capacity(codewords.len());
 

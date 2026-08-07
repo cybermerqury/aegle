@@ -4,7 +4,6 @@
 use std::format;
 
 use bitvec::{slice::BitSlice, vec::BitVec};
-// use reqwest::{Client, ClientBuilder};
 use serde::Deserialize;
 use serde_json::json;
 use tracing::{debug, instrument, warn};
@@ -102,6 +101,7 @@ impl SCSApi {
     pub fn decode(
         &self,
         codec_name: &str,
+        error_rate: f64,
         codeword: &BitSlice,
         syndrome: &BitSlice,
     ) -> Result<BitVec> {
@@ -110,7 +110,7 @@ impl SCSApi {
 
         const ALMOST_ZERO: f32 = 1e-10;
 
-        let url = self.url(Self::CALCULATE_SYNDROME_URL);
+        let url = self.url(Self::DECODE_URL);
 
         let codeword = codeword.iter().by_vals().map(u8::from).collect::<Vec<_>>();
 
@@ -119,6 +119,7 @@ impl SCSApi {
         let payload = json!({
             "codec_id": codec_name,
             "noisy_codeword": codeword,
+            "symbol_error_prob": error_rate,
             "syndrome": syndrome,
             "q": Q,
             "almostzero": ALMOST_ZERO
@@ -129,8 +130,8 @@ impl SCSApi {
         let body = response.into_body().read_json::<DecodeResponse>()?;
 
         match body {
-            DecodeResponse::Ok { corrected_syndrome } => {
-                Ok(corrected_syndrome.into_iter().map(|bit| bit != 0).collect())
+            DecodeResponse::Ok { corrected_codeword } => {
+                Ok(corrected_codeword.into_iter().map(|bit| bit != 0).collect())
             }
             DecodeResponse::Err(e) => Err(e.into()),
         }
@@ -172,7 +173,7 @@ pub enum CalculateSyndromeResponse {
 #[derive(Deserialize)]
 #[serde(untagged)]
 pub enum DecodeResponse {
-    Ok { corrected_syndrome: Vec<u8> },
+    Ok { corrected_codeword: Vec<u8> },
     Err(ErrorResponse),
 }
 
