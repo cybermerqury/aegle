@@ -14,7 +14,6 @@ use tracing::{debug, error, info, instrument, warn, Instrument};
 use ec_simcommsys::client::SCSApi;
 
 use core::{
-    error::{Error, ErrorKind},
     key_state_machine::{Key, Reconciling, Secret, Sifted},
     models::{
         follower_comms::{FollowerRequests, FollowerResponse, PAReply},

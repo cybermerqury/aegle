@@ -196,6 +196,7 @@ impl PostProcessingStep for SimCommSys {
         // No leaked bits were sent since the codewords were generated on each side. Is this correct?
         // TODO: Reconciled keys frequently do not match. Why?
         // TODO: Create new LDPC block size and test against those.
+        // TODO: Cascade occasionally produces incorrect keys. Why?
         Ok(self.key.reconcile(reconciled_key.into(), 0))
     }
 }

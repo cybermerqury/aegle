@@ -24,6 +24,9 @@ impl SCSApi {
     pub const REGISTER_CODEC_URL: &str = "register";
     pub const CALCULATE_SYNDROME_URL: &str = "calculate-syndrome";
     pub const DECODE_URL: &str = "decode";
+    /// Denotes a binary field.
+    const Q: usize = 2;
+    const ALMOST_ZERO: f32 = 1e-10;
 
     pub fn new(base_url: &str) -> Result<Self> {
         let agent_config = Agent::config_builder().http_status_as_error(false).build();
@@ -105,11 +108,6 @@ impl SCSApi {
         codeword: &BitSlice,
         syndrome: &BitSlice,
     ) -> Result<BitVec> {
-        /// Binary code so set to 2.
-        const Q: usize = 2;
-
-        const ALMOST_ZERO: f32 = 1e-10;
-
         let url = self.url(Self::DECODE_URL);
 
         let codeword = codeword.iter().by_vals().map(u8::from).collect::<Vec<_>>();
@@ -121,8 +119,8 @@ impl SCSApi {
             "noisy_codeword": codeword,
             "symbol_error_prob": error_rate,
             "syndrome": syndrome,
-            "q": Q,
-            "almostzero": ALMOST_ZERO
+            "q": Self::Q,
+            "almostzero": Self::ALMOST_ZERO
         });
 
         let response = self.client.post(url).send_json(payload)?;
@@ -211,15 +209,7 @@ pub fn parity_matrix_to_codec(matrix: &ParityMatrix) -> Result<String> {
     let col_indices = matrix
         .iter_variables()
         .map(|(_, v)| v.iter().map(|i| i + 1))
-        .map(|col| {
-            let mut buffer = col.collect::<Vec<_>>();
-            // if buffer.len() < max_col_weight {
-            //     for _ in 0..(max_col_weight - buffer.len()) {
-            //         buffer.push(0);
-            //     }
-            // }
-            buffer
-        })
+        .map(|col| col.collect::<Vec<_>>())
         .collect::<Vec<_>>();
 
     // Weight vectors
