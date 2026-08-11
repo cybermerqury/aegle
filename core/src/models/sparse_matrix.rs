@@ -4,7 +4,7 @@
 use std::{
     collections::BTreeMap,
     fs::File,
-    io::{BufRead, BufReader, Lines},
+    io::{BufRead, BufReader, Lines, Read},
     path::Path,
     str::FromStr,
 };
@@ -46,9 +46,21 @@ impl SparseMatrix {
         Self { variables, factors }
     }
 
-    pub fn from_alist(file: &Path) -> Result<Self, SparseMatrixError> {
+    pub fn from_alist_file(file: &Path) -> Result<Self, SparseMatrixError> {
         let alist_file = File::open(file)?;
-        let mut lines = BufReader::new(alist_file).lines();
+
+        Self::from_alist(alist_file)
+    }
+
+    pub fn from_alist_str(src: &str) -> Result<Self, SparseMatrixError> {
+        Self::from_alist(src.as_bytes())
+    }
+
+    pub fn from_alist<R>(src: R) -> Result<Self, SparseMatrixError>
+    where
+        R: Read,
+    {
+        let mut lines = BufReader::new(src).lines();
 
         // Load all metadata.
         let (num_variables, num_factors) = read_tuple(lines.by_ref())?;
@@ -134,10 +146,13 @@ impl SparseMatrix {
     }
 }
 
-fn populate_neighbours(
-    lines: &mut Lines<BufReader<File>>,
+fn populate_neighbours<R>(
+    lines: &mut Lines<BufReader<R>>,
     n: usize,
-) -> Result<BTreeMap<usize, Neighbours>, SparseMatrixError> {
+) -> Result<BTreeMap<usize, Neighbours>, SparseMatrixError>
+where
+    R: Read,
+{
     let mut read_lines = 0;
     let mut map = BTreeMap::new();
     for (variable, line) in lines.take(n).enumerate() {
@@ -156,7 +171,10 @@ fn populate_neighbours(
     }
 }
 
-fn read_tuple(lines: &mut Lines<BufReader<File>>) -> Result<(usize, usize), SparseMatrixError> {
+fn read_tuple<R>(lines: &mut Lines<BufReader<R>>) -> Result<(usize, usize), SparseMatrixError>
+where
+    R: Read,
+{
     let Some(line) = lines.next() else {
         return Err(SparseMatrixError::FileTooShort);
     };
@@ -169,7 +187,10 @@ fn read_tuple(lines: &mut Lines<BufReader<File>>) -> Result<(usize, usize), Spar
     Ok((usize::from_str(x[0])?, usize::from_str(x[1])?))
 }
 
-fn read_vec(lines: &mut Lines<BufReader<File>>) -> Result<Vec<usize>, SparseMatrixError> {
+fn read_vec<R>(lines: &mut Lines<BufReader<R>>) -> Result<Vec<usize>, SparseMatrixError>
+where
+    R: Read,
+{
     let Some(line) = lines.next() else {
         return Err(SparseMatrixError::FileTooShort);
     };
@@ -181,8 +202,6 @@ fn read_vec(lines: &mut Lines<BufReader<File>>) -> Result<Vec<usize>, SparseMatr
 
 #[cfg(test)]
 mod tests {
-    use std::io::Write;
-
     use crate::models::sparse_matrix::SparseMatrix;
 
     const H: [[u8; 6]; 4] = [
@@ -211,10 +230,7 @@ mod tests {
 
     #[test]
     fn read_alist() {
-        let mut temp_file =
-            tempfile::NamedTempFile::new().expect("Error creating a temporary file");
-        write!(temp_file, "{}", H_ALIST).unwrap();
-        let m1 = SparseMatrix::from_alist(temp_file.path()).unwrap();
+        let m1 = SparseMatrix::from_alist_str(H_ALIST).unwrap();
         let m2 = SparseMatrix::from_array(&H);
 
         assert_eq!(

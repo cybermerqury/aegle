@@ -110,7 +110,7 @@ impl PostProcessingSetup for SetupBinaryLDPC {
         args: Self::SetupArgs,
     ) -> Result<Self::Worker, Self::SetupErr> {
         let parity_matrix =
-            ParityMatrix::from_alist(Path::new(&self.parity_matrix_alist_file)).unwrap();
+            ParityMatrix::from_alist_file(Path::new(&self.parity_matrix_alist_file)).unwrap();
 
         Ok(Self::Worker {
             error_estimate: args,

@@ -270,8 +270,6 @@ pub fn parity_matrix_to_codec(matrix: &ParityMatrix) -> Result<String> {
 
 #[cfg(test)]
 mod tests {
-    use std::io::Write;
-
     use core::models::parity_matrix::ParityMatrix;
 
     /// Sample parity matrix of the dollowing shape:
@@ -298,11 +296,7 @@ mod tests {
 
     #[test]
     fn build_codec_from_valid_parity_matrix() {
-        let mut temp_file =
-            tempfile::NamedTempFile::new().expect("Error creating a temporary file");
-        write!(temp_file, "{}", H_ALIST).unwrap();
-
-        let matrix = ParityMatrix::from_alist(temp_file.path()).unwrap();
+        let matrix = ParityMatrix::from_alist_str(H_ALIST).unwrap();
 
         let config = super::parity_matrix_to_codec(&matrix).unwrap();
 

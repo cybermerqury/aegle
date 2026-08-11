@@ -21,9 +21,15 @@ impl ParityMatrix {
         }
     }
 
-    pub fn from_alist(file: &Path) -> Result<Self, SparseMatrixError> {
+    pub fn from_alist_str(src: &str) -> Result<Self, SparseMatrixError> {
         Ok(Self {
-            inner: SparseMatrix::from_alist(file)?,
+            inner: SparseMatrix::from_alist_str(src)?,
+        })
+    }
+
+    pub fn from_alist_file(file: &Path) -> Result<Self, SparseMatrixError> {
+        Ok(Self {
+            inner: SparseMatrix::from_alist_file(file)?,
         })
     }
 

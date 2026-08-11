@@ -74,7 +74,7 @@ impl PostProcessingStep for SimCommSys {
                 FollowerRequests::SCSSyndrome(self.codec_id.clone()),
             )),
             FollowerPendingStep::DecodeKey => {
-                info!("Decoding key.");
+                info!("Decoding key of {} bits.", self.key.length());
 
                 let Some(follower_syndromes) = &self.follower_syndromes else {
                     return Err(PPError::new(

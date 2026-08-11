@@ -27,7 +27,7 @@ use crate::communication::key_processing::{RegisterKey, RegisterReply};
 use crate::communication::parse::{read_message, send_message};
 use crate::communication::quic::QuinnStream;
 use crate::errors::{MainResult, SubsystemResult};
-use crate::models::matrices::{CODEWORD_SIZE, GENERATOR_MATRIX, PARITY_MATRIX, WORD_SIZE};
+use crate::models::matrices::{CODEWORD_SIZE, GENERATOR_MATRIX_STR, PARITY_MATRIX_STR, WORD_SIZE};
 use crate::models::{DeviceId, FullId, FullKeyId, KeyId, LocalDeviceId, PeerId};
 
 type NewKeyEntry = (
@@ -370,7 +370,7 @@ impl KeyProcessor {
                 FollowerRequests::SCSRegisterCode(code_id) => {
                     info!("Registering LDPC code '{code_id}' with SimCommSys.");
 
-                    let matrix = ParityMatrix::from_array(&PARITY_MATRIX);
+                    let matrix = ParityMatrix::from_alist_str(PARITY_MATRIX_STR)?;
 
                     let is_success = self
                         .scs_client
@@ -386,7 +386,7 @@ impl KeyProcessor {
                 }
                 #[cfg(feature = "ec_simcommsys")]
                 FollowerRequests::SCSSyndrome(code_id) => {
-                    let gen_matrix = GeneratorMatrix::from_array(&GENERATOR_MATRIX);
+                    let gen_matrix = GeneratorMatrix::from_alist_str(GENERATOR_MATRIX_STR)?;
 
                     if key.get_interior_ref().len() % WORD_SIZE != 0 {
                         warn!(
