@@ -16,7 +16,7 @@ use core::{
 
 #[cfg(feature = "ec_simcommsys")]
 use crate::models::matrices::{
-    CODEWORD_SIZE, GENERATOR_MATRIX_STR, PARITY_MATRIX_STR, SCS_CODEC_ID, WORD_SIZE,
+    CODEWORD_SIZE, GENERATOR_MATRIX, PARITY_MATRIX, SCS_CODEC_ID, WORD_SIZE,
 };
 use crate::{
     communication::{
@@ -110,8 +110,8 @@ async fn handle_new_key(
 #[cfg(feature = "ec_simcommsys")]
 fn create_simcommsys_stage() -> core::error::Result<SetupSimCommSys> {
     // TODO: Remove unwraps
-    let parity_matrix = ParityMatrix::from_alist_str(PARITY_MATRIX_STR).unwrap();
-    let generator_matrix = GeneratorMatrix::from_alist_str(GENERATOR_MATRIX_STR).unwrap();
+    let parity_matrix = ParityMatrix::from_array(&PARITY_MATRIX);
+    let generator_matrix = GeneratorMatrix::from_array(&GENERATOR_MATRIX);
 
     SetupSimCommSys::new(
         SCS_CODEC_ID,

@@ -17,7 +17,8 @@ use core::{
     key_state_machine::{Key, Reconciling, Secret, Sifted},
     models::{
         follower_comms::{FollowerRequests, FollowerResponse, PAReply},
-        {generator_matrix::GeneratorMatrix, parity_matrix::ParityMatrix},
+        generator_matrix::GeneratorMatrix,
+        parity_matrix::ParityMatrix,
     },
     spawn_subsystem,
     sync::tasks::{Monitor, TaskManager},
@@ -386,7 +387,8 @@ impl KeyProcessor {
                 }
                 #[cfg(feature = "ec_simcommsys")]
                 FollowerRequests::SCSSyndrome(code_id) => {
-                    let gen_matrix = GeneratorMatrix::from_alist_str(GENERATOR_MATRIX_STR)?;
+                    // let gen_matrix = GeneratorMatrix::from_array(&GENERATOR_MATRIX);
+                    // let gen_matrix = GeneratorMatrix::from_alist_str(GENERATOR_MATRIX_STR)?;
 
                     if key.get_interior_ref().len() % WORD_SIZE != 0 {
                         warn!(
