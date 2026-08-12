@@ -82,17 +82,19 @@ impl PostProcessingStep for SimCommSys {
                     ));
                 };
 
-                let (codewords, _) = match self.key.codeword_chunks(
-                    self.word_size,
-                    self.codeword_size,
-                    &self.generator_matrix,
-                ) {
-                    Ok(result) => result,
-                    Err(e) => {
-                        warn!("Failed to generate codewords. Error: {e}");
-                        return Err(PPError::new("Could not generate codewords"));
+                let (codewords, remainder) = self.key.chunks(self.codeword_size);
+
+                match remainder {
+                    Some(remainder) => {
+                        warn!(
+                            "Key does not fit cleanly into word size. Word size: {}, key size: {}, remaining bits: {}",
+                            self.codeword_size,
+                            self.key.get_interior_ref().len(),
+                            remainder.len()
+                        );
                     }
-                };
+                    None => {}
+                }
 
                 if follower_syndromes.len() != codewords.len() {
                     warn!(
@@ -134,7 +136,7 @@ impl PostProcessingStep for SimCommSys {
 
                 let new_key = corrected_codewords
                     .into_iter()
-                    .map(|codeword| codeword[0..self.word_size].to_bitvec())
+                    .map(|codeword| codeword.to_bitvec())
                     .flatten()
                     .collect::<BitVec>();
 

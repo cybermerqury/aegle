@@ -4,14 +4,14 @@
 use core::{
     key_state_machine::{Key, Reconciled, Secret},
     models::{
-        follower_comms::{FollowerRequests, FollowerResponse},
+        follower_comms::{FollowerRequests, FollowerResponse, PAReply},
         Toeplitz,
     },
     traits::{PPError, PPStep, PostProcessingSetup, PostProcessingStep},
 };
 use std::convert::Infallible;
 
-use tracing::instrument;
+use tracing::{instrument, warn};
 
 pub struct SetupPrivacyAmplification;
 
@@ -60,9 +60,11 @@ impl PostProcessingStep for PrivacyAmplification {
             }
             KeyState::WaitingForConfirm(key) => {
                 if self.confirmed {
-                    let Some(secret_key) = key.privacy_amplification(&self.toeplitz) else {
-                        return Err(PPError::new("Unable to apply hash function"));
-                    };
+                    let secret_key = key.privacy_amplification(&self.toeplitz).map_err(|e| {
+                        warn!("Privacy amplification failed. Error: {e}");
+                        PPError::new("Unable to apply hash function")
+                    })?;
+
                     self.key = KeyState::Confirmed(secret_key);
                     Ok(PPStep::Result(()))
                 } else {
@@ -74,15 +76,16 @@ impl PostProcessingStep for PrivacyAmplification {
     }
 
     #[instrument(name = "pa_update", skip_all)]
-    fn update(&mut self, _update: FollowerResponse) -> Result<(), PPError> {
-        if !matches!(FollowerResponse::PrivacyAmplificationConfirmed, _update) {
-            return Err(PPError::new("Unexpected response received!"));
-        }
-        if self.confirmed {
-            Err(PPError::new("Already confirmed!"))
-        } else {
-            self.confirmed = true;
-            Ok(())
+    fn update(&mut self, response: FollowerResponse) -> Result<(), PPError> {
+        match response {
+            FollowerResponse::PrivacyAmplificationConfirmed(PAReply::Confirmed) => {
+                self.confirmed = true;
+                Ok(())
+            }
+            FollowerResponse::PrivacyAmplificationConfirmed(PAReply::Error) => {
+                Err(PPError::new("Privacy amplification at follower failed"))
+            }
+            _ => Err(PPError::new("Unexpected response received!")),
         }
     }
 

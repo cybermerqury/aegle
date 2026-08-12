@@ -17,7 +17,6 @@ use core::{
     key_state_machine::{Key, Reconciling, Secret, Sifted},
     models::{
         follower_comms::{FollowerRequests, FollowerResponse, PAReply},
-        generator_matrix::GeneratorMatrix,
         parity_matrix::ParityMatrix,
     },
     spawn_subsystem,
@@ -28,7 +27,7 @@ use crate::communication::key_processing::{RegisterKey, RegisterReply};
 use crate::communication::parse::{read_message, send_message};
 use crate::communication::quic::QuinnStream;
 use crate::errors::{MainResult, SubsystemResult};
-use crate::models::matrices::{CODEWORD_SIZE, GENERATOR_MATRIX_STR, PARITY_MATRIX_STR, WORD_SIZE};
+use crate::models::matrices::{CODEWORD_SIZE, PARITY_MATRIX, WORD_SIZE};
 use crate::models::{DeviceId, FullId, FullKeyId, KeyId, LocalDeviceId, PeerId};
 
 type NewKeyEntry = (
@@ -328,6 +327,7 @@ impl KeyProcessor {
     ) -> MainResult<Option<Key<Secret>>> {
         let buff = &mut vec![0; 1024 * 1024];
         let mut leaked_bits = 0;
+        let mut final_key_length: usize = key.length();
 
         loop {
             let request: FollowerRequests = self
@@ -363,15 +363,25 @@ impl KeyProcessor {
                         .inspect_err(|e| warn!("Error sending syndrome to peer: {e:?}"))?;
                 }
                 FollowerRequests::PrivacyAmplification(toeplitz) => {
-                    let data = key.get_interior();
+                    info!("Reconciling key with {leaked_bits} leaked bits.");
+
+                    let data = key.get_interior_ref()[0..final_key_length].to_bitvec();
+
                     let reconciled = key.reconcile(data.into(), leaked_bits);
-                    return Ok(reconciled.privacy_amplification(&toeplitz));
+
+                    return match reconciled.privacy_amplification(&toeplitz) {
+                        Ok(final_key) => Ok(Some(final_key)),
+                        Err(e) => {
+                            warn!("Privacy amplification failed. Error: {e}");
+                            Ok(None)
+                        }
+                    };
                 }
                 #[cfg(feature = "ec_simcommsys")]
                 FollowerRequests::SCSRegisterCode(code_id) => {
                     info!("Registering LDPC code '{code_id}' with SimCommSys.");
 
-                    let matrix = ParityMatrix::from_alist_str(PARITY_MATRIX_STR)?;
+                    let matrix = ParityMatrix::from_array(&PARITY_MATRIX);
 
                     let is_success = self
                         .scs_client
@@ -390,26 +400,31 @@ impl KeyProcessor {
                     // let gen_matrix = GeneratorMatrix::from_array(&GENERATOR_MATRIX);
                     // let gen_matrix = GeneratorMatrix::from_alist_str(GENERATOR_MATRIX_STR)?;
 
-                    if key.get_interior_ref().len() % WORD_SIZE != 0 {
-                        warn!(
-                            "Key does not fit cleanly into word size. Word size: {}, key size: {}",
-                            WORD_SIZE,
-                            key.get_interior_ref().len()
-                        );
-                    } else {
-                        debug!("Key divisible into chunk length.");
-                    }
+                    let (codewords, remainder) = key.chunks(CODEWORD_SIZE);
 
-                    let (codewords, remainder) =
-                        key.codeword_chunks(WORD_SIZE, CODEWORD_SIZE, &gen_matrix)?;
-
-                    if let Some(remainder) = remainder {
-                        debug!(
-                            "Key of {} bits chunked into {WORD_SIZE}-bit words. Remainder: {} bits",
-                            key.get_interior_ref().len(),
+                    let remainder_bits = match remainder {
+                        Some(remainder) => {
+                            warn!(
+                                "Key does not fit cleanly into word size. Word size: {}, key size: {}, remaining bits: {}",
+                                CODEWORD_SIZE,
+                                key.get_interior_ref().len(),
+                                remainder.len()
+                            );
                             remainder.len()
-                        );
-                    }
+                        }
+                        None => {
+                            debug!("Key divisible into chunk length.");
+                            0
+                        }
+                    };
+
+                    final_key_length = key.get_interior_ref().len() - remainder_bits;
+
+                    debug!(
+                        "Key of {} bits chunked into {WORD_SIZE}-bit words. Remainder: {} bits",
+                        key.get_interior_ref().len(),
+                        remainder_bits
+                    );
 
                     let mut syndromes = Vec::with_capacity(codewords.len());
 
@@ -423,6 +438,9 @@ impl KeyProcessor {
 
                         syndromes.push(syndrome)
                     }
+
+                    leaked_bits +=
+                        syndromes.iter().fold(0, |acc, s| acc + s.len()) - remainder_bits;
 
                     let response = FollowerResponse::SCSSyndrome(Some(syndromes));
 

@@ -160,34 +160,17 @@ impl Key<Reconciling> {
         }
     }
 
-    /// Generates codewords using the given generator matrix and parameters.
-    /// Returns the codewords and remaining bits (if any) which couldn't be converted.
-    pub fn codeword_chunks(
-        &self,
-        word_len: usize,
-        codeword_len: usize,
-        gen_matrix: &GeneratorMatrix,
-    ) -> crate::error::Result<(Vec<BitVec>, Option<&BitSlice>)> {
-        let word_iter = self.get_interior_ref().chunks_exact(word_len);
-        let remainder = word_iter.remainder();
+    /// Chunks the key into codeword-long vectors.
+    pub fn chunks(&self, codeword_len: usize) -> (Vec<&BitSlice>, Option<&BitSlice>) {
+        let codeword_iter = self.get_interior_ref().chunks_exact(codeword_len);
+
+        let remainder = codeword_iter.remainder();
         let remainder = match remainder.is_empty() {
             true => None,
             false => Some(remainder),
         };
 
-        let codewords = word_iter
-            .map(|word| {
-                let codeword = gen_matrix
-                    .generate_codeword(word, codeword_len)
-                    .ok_or_else(|| {
-                        Error::new(ErrorKind::InconsistentData, "Failed to construct codeword.")
-                    })?;
-
-                crate::error::Result::Ok(codeword)
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-
-        Ok((codewords, remainder))
+        (codeword_iter.collect(), remainder)
     }
 
     pub fn reveal(&mut self, idx: usize) -> Option<bool> {
@@ -208,8 +191,8 @@ impl Key<Reconciling> {
     }
 }
 impl Key<Reconciled> {
-    pub fn privacy_amplification(self, t: &Toeplitz) -> Option<Key<Secret>> {
-        Some(Key {
+    pub fn privacy_amplification(self, t: &Toeplitz) -> crate::error::Result<Key<Secret>> {
+        Ok(Key {
             data: t.hash_data(self.data.0)?.into(),
             key_id: self.key_id,
             device_id: self.device_id,
@@ -245,9 +228,11 @@ mod tests {
         recon.reveal(5);
 
         let test_key_reconciled: BitVec = [true, true, true, true, false].iter().collect();
+
         recon
             .reconcile(KeyData(test_key_reconciled), 2)
-            .privacy_amplification(&Toeplitz::new(5, 5 - 2));
+            .privacy_amplification(&Toeplitz::new(5, 5 - 2))
+            .unwrap();
     }
 
     #[test]
