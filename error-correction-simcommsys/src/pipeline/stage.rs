@@ -12,6 +12,7 @@ use tracing::{debug, info, warn};
 
 use crate::client::SCSApi;
 
+/// Represents the next step to be performed by the follower.
 #[derive(Debug, Clone, Copy)]
 enum FollowerPendingStep {
     Register,
@@ -23,10 +24,12 @@ pub struct SimCommSys {
     error_rate: f64,
     codec_id: String,
     key: Key<Reconciling>,
+    /// Contains the final error-corrected key data.
     reconciled_key: Option<BitVec>,
     word_size: usize,
     codeword_size: usize,
     client: SCSApi,
+    /// Stores the follower syndromes once returned.
     follower_syndromes: Option<Vec<BitVec>>,
     follower_next_step: FollowerPendingStep,
 }
@@ -59,6 +62,11 @@ impl PostProcessingStep for SimCommSys {
     type FinalStage = Reconciled;
     type InitialStage = Reconciling;
 
+    /// Error-correction main loop. Follows the below state machine:
+    ///
+    /// 1. `FollowerPendingStep::Register` -> Follower registers LDPC code to be used.
+    /// 2. `FollowerPendingStep::GetSyndrome` -> Follower obtains syndrome for the key (split into fixed-size chunks of key data according to code size).
+    /// 3. `FollowerPendingStep::DecodeKey` ->
     fn step(&mut self) -> Result<PPStep<Self::Result, FollowerRequests>, PPError> {
         match self.follower_next_step {
             FollowerPendingStep::Register => Ok(PPStep::GetUpdate(
@@ -78,16 +86,13 @@ impl PostProcessingStep for SimCommSys {
 
                 let (codewords, remainder) = self.key.chunks(self.codeword_size);
 
-                match remainder {
-                    Some(remainder) => {
-                        warn!(
-                            "Key does not fit cleanly into word size. Word size: {}, key size: {}, remaining bits: {}",
-                            self.codeword_size,
-                            self.key.get_interior_ref().len(),
-                            remainder.len()
-                        );
-                    }
-                    None => {}
+                if let Some(remainder) = remainder {
+                    warn!(
+                        "Key does not fit cleanly into word size. Word size: {}, key size: {}, remaining bits: {}",
+                        self.codeword_size,
+                        self.key.get_interior_ref().len(),
+                        remainder.len()
+                    );
                 }
 
                 if follower_syndromes.len() != codewords.len() {
@@ -121,7 +126,7 @@ impl PostProcessingStep for SimCommSys {
                     };
 
                     #[cfg(debug_assertions)]
-                    info!(
+                    debug!(
                         "Original: {codeword}, Syndrome: {syndrome}, Corrected codeword: {corrected_codeword}"
                     );
 
@@ -130,7 +135,6 @@ impl PostProcessingStep for SimCommSys {
 
                 let new_key = corrected_codewords
                     .into_iter()
-                    .map(|codeword| codeword.to_bitvec())
                     .flatten()
                     .collect::<BitVec>();
 
@@ -177,6 +181,7 @@ impl PostProcessingStep for SimCommSys {
         let (reconciled_key, syndromes) = match (self.reconciled_key, self.follower_syndromes) {
             (Some(key), Some(syndromes)) => Ok((key, syndromes)),
             (Some(_), None) => {
+                // SAFETY - We couldn't have computed the reconciled keys without first storing the syndromes.
                 unreachable!("Reconciled key present but syndromes not set for some reason.")
             }
             (None, Some(_)) => Err(PPError::new("Reconciled key not yet generated")),
@@ -189,10 +194,6 @@ impl PostProcessingStep for SimCommSys {
         info!("Reconciling {key_len}-bit key with {leaked_bits} leaked bits.");
 
         // TODO: Verify validity of leaked bits.
-        // No leaked bits were sent since the codewords were generated on each side. Is this correct?
-        // TODO: Reconciled keys frequently do not match. Why?
-        // TODO: Create new LDPC block size and test against those.
-        // TODO: Cascade occasionally produces incorrect keys. Why?
         Ok(self.key.reconcile(reconciled_key.into(), 0))
     }
 }

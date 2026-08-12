@@ -76,22 +76,23 @@ sequenceDiagram
     F ->>- L : Respond with success
 
     L ->>+ F : Get syndromes
-    F ->> F : Chunk key into multiple codewords
-    loop for each codeword
+    F ->> F : Chunk key into multiple codeword-length subkeys
+    loop for each subkey
     F ->>+ SCSF : Send `/calculate-syndrome`
     SCSF ->>- F : Return syndrome
     end
-    F ->>- L : Get syndromes
+    F ->>- L : Return syndromes
 
-    L ->> L : Chunk key into multiple codewords
-    loop for each codeword
+    L ->> L : Chunk key into multiple codeword-length subkeys
+    loop for each subkey
+    L ->> L : Get matching syndrome
     L ->>+ SCSL : Send `/decode`
     SCSL ->>- L : Return corrected key
     end
 
-    L ->> L : Splice codewords into reconciled key
+    L ->> L : Join corrected keys into new key
 
-    L ->>- L : Finalise reconciliation
+    L ->>- L : Reconcile key and finalise
 
     end
 ```

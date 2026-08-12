@@ -39,7 +39,6 @@ impl SetupSimCommSys {
     }
 
     /// Register this setup with simcommsys.
-    /// Loads the parity matrix from an alist file then submits it to simcommsys.
     fn register_with_scs(&self) -> core::error::Result<()> {
         debug!(
             "Registering with simcommsys server as '{}'. Matrix: {:?}",
