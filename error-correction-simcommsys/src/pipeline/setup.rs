@@ -3,7 +3,7 @@
 
 use core::{
     key_state_machine::Key,
-    models::{generator_matrix::GeneratorMatrix, parity_matrix::ParityMatrix},
+    models::parity_matrix::ParityMatrix,
     traits::{PostProcessingSetup, PostProcessingStep},
 };
 
@@ -17,7 +17,6 @@ pub struct SetupSimCommSys {
     client: SCSApi,
     word_size: usize,
     codeword_size: usize,
-    generator_matrix: GeneratorMatrix,
 }
 
 impl SetupSimCommSys {
@@ -27,7 +26,6 @@ impl SetupSimCommSys {
         base_url: &str,
         word_size: usize,
         codeword_size: usize,
-        generator_matrix: GeneratorMatrix,
     ) -> core::error::Result<Self> {
         let client = SCSApi::new(base_url)?;
 
@@ -36,7 +34,6 @@ impl SetupSimCommSys {
             matrix: parity_matrix,
             word_size,
             codeword_size,
-            generator_matrix,
             client,
         })
     }
@@ -73,7 +70,6 @@ impl PostProcessingSetup for SetupSimCommSys {
             self.codec_id,
             self.word_size,
             self.codeword_size,
-            self.generator_matrix,
             key,
             self.client,
         ))

@@ -358,6 +358,8 @@ impl KeyProcessor {
                         .map(|idx| calc_syndrome(&idx, key.get_interior_ref()))
                         .collect::<BitVec>();
 
+                    final_key_length = key.get_interior_ref().len();
+
                     self.send_msg(&FollowerResponse::Syndrome(syndrome))
                         .await
                         .inspect_err(|e| warn!("Error sending syndrome to peer: {e:?}"))?;
@@ -397,9 +399,6 @@ impl KeyProcessor {
                 }
                 #[cfg(feature = "ec_simcommsys")]
                 FollowerRequests::SCSSyndrome(code_id) => {
-                    // let gen_matrix = GeneratorMatrix::from_array(&GENERATOR_MATRIX);
-                    // let gen_matrix = GeneratorMatrix::from_alist_str(GENERATOR_MATRIX_STR)?;
-
                     let (codewords, remainder) = key.chunks(CODEWORD_SIZE);
 
                     let remainder_bits = match remainder {

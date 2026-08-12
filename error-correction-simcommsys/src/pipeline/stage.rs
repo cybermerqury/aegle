@@ -3,10 +3,7 @@
 
 use core::{
     key_state_machine::{Key, Reconciled, Reconciling},
-    models::{
-        follower_comms::{FollowerRequests, FollowerResponse},
-        generator_matrix::GeneratorMatrix,
-    },
+    models::follower_comms::{FollowerRequests, FollowerResponse},
     traits::{PPError, PPStep, PostProcessingStep},
 };
 
@@ -29,7 +26,6 @@ pub struct SimCommSys {
     reconciled_key: Option<BitVec>,
     word_size: usize,
     codeword_size: usize,
-    generator_matrix: GeneratorMatrix,
     client: SCSApi,
     follower_syndromes: Option<Vec<BitVec>>,
     follower_next_step: FollowerPendingStep,
@@ -41,7 +37,6 @@ impl SimCommSys {
         codec_id: String,
         word_size: usize,
         codeword_size: usize,
-        generator_matrix: GeneratorMatrix,
         key: Key<Reconciling>,
         client: SCSApi,
     ) -> Self {
@@ -52,7 +47,6 @@ impl SimCommSys {
             reconciled_key: None,
             word_size,
             codeword_size,
-            generator_matrix,
             client,
             follower_syndromes: None,
             follower_next_step: FollowerPendingStep::Register,

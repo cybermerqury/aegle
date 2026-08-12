@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 // SPDX-FileCopyrightText:  © 2024 - 2026 Merqury Cybersecurity Ltd <info@merqury.eu>
 
-#[cfg(feature = "ec_simcommsys")]
-use core::models::generator_matrix::GeneratorMatrix;
 use std::io::Write;
 use tokio::sync::mpsc::Receiver;
 use tracing::{debug, error, info, instrument, warn, Instrument};
@@ -15,9 +13,7 @@ use core::{
 };
 
 #[cfg(feature = "ec_simcommsys")]
-use crate::models::matrices::{
-    CODEWORD_SIZE, GENERATOR_MATRIX, PARITY_MATRIX, SCS_CODEC_ID, WORD_SIZE,
-};
+use crate::models::matrices::{CODEWORD_SIZE, PARITY_MATRIX, SCS_CODEC_ID, WORD_SIZE};
 use crate::{
     communication::{
         key_processing::{RegisterKey, RegisterReply},
@@ -111,7 +107,6 @@ async fn handle_new_key(
 fn create_simcommsys_stage() -> core::error::Result<SetupSimCommSys> {
     // TODO: Remove unwraps
     let parity_matrix = ParityMatrix::from_array(&PARITY_MATRIX);
-    let generator_matrix = GeneratorMatrix::from_array(&GENERATOR_MATRIX);
 
     SetupSimCommSys::new(
         SCS_CODEC_ID,
@@ -119,7 +114,6 @@ fn create_simcommsys_stage() -> core::error::Result<SetupSimCommSys> {
         "http://localhost:8000",
         WORD_SIZE,
         CODEWORD_SIZE,
-        generator_matrix,
     )
 }
 
@@ -225,6 +219,7 @@ async fn process_key(connection: quinn::Connection, key: Key<Sifted>) {
         .create(true)
         .open(format!("{}.csv", key.device_id()))
         .unwrap();
+
     let _ = file.write_all(
         format!(
             "{},{}\n",

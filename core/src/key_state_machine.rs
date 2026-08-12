@@ -6,10 +6,7 @@ use std::f64;
 use bitvec::{slice::BitSlice, vec::BitVec};
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    error::{Error, ErrorKind},
-    models::{generator_matrix::GeneratorMatrix, DeviceId, KeyId, Toeplitz},
-};
+use crate::models::{DeviceId, KeyId, Toeplitz};
 
 #[derive(Serialize, Deserialize, Default)]
 pub struct Sifted {
