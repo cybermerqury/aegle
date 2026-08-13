@@ -24,7 +24,7 @@ impl SCSApi {
     pub const REGISTER_CODEC_URL: &str = "register";
     pub const CALCULATE_SYNDROME_URL: &str = "calculate-syndrome";
     pub const DECODE_URL: &str = "decode";
-    /// Denotes a binary field.
+
     const Q: usize = 2;
     const ALMOST_ZERO: f32 = 1e-10;
 
@@ -175,7 +175,7 @@ pub enum DecodeResponse {
     Err(ErrorResponse),
 }
 
-/// Convert a given parity matrix to a codec config,
+/// Convert a given parity matrix to a config file compatible with simcommsys.
 pub fn parity_matrix_to_codec(matrix: &ParityMatrix) -> Result<String> {
     // Get max dimension weights.
 
@@ -195,15 +195,7 @@ pub fn parity_matrix_to_codec(matrix: &ParityMatrix) -> Result<String> {
     let row_indices = matrix
         .iter_factors()
         .map(|(_, f)| f.iter().map(|i| i + 1))
-        .map(|row| {
-            let mut buffer = row.collect::<Vec<_>>();
-            if buffer.len() < max_col_weight {
-                for _ in 0..(max_col_weight - buffer.len()) {
-                    buffer.push(0);
-                }
-            }
-            buffer
-        })
+        .map(|row| row.collect::<Vec<_>>())
         .collect::<Vec<_>>();
 
     let col_indices = matrix
@@ -216,12 +208,12 @@ pub fn parity_matrix_to_codec(matrix: &ParityMatrix) -> Result<String> {
 
     let row_weights_vec = row_indices
         .iter()
-        .map(|row| row.iter().filter(|i| **i != 0).count().to_string())
+        .map(|row| row.len().to_string())
         .collect::<Vec<_>>();
 
     let col_weights_vec = col_indices
         .iter()
-        .map(|col| col.iter().filter(|i| **i != 0).count().to_string())
+        .map(|col| col.len().to_string())
         .collect::<Vec<_>>();
 
     let mut col_weights_str = String::new();
