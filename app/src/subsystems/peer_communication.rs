@@ -94,6 +94,8 @@ async fn launch_peer_communication(
                 peer_id,
                 device_id,
                 new_keys,
+                #[cfg(feature = "ec_simcommsys")]
+                scs_client,
             ));
         }
         Role::Follower => {

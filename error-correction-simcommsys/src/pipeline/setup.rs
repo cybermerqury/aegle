@@ -6,6 +6,7 @@ use core::{
     models::parity_matrix::ParityMatrix,
     traits::{PostProcessingSetup, PostProcessingStep},
 };
+use std::sync::Arc;
 
 use tracing::{debug, error};
 
@@ -14,7 +15,7 @@ use crate::{client::SCSApi, pipeline::stage::SimCommSys};
 pub struct SetupSimCommSys {
     codec_id: String,
     matrix: ParityMatrix,
-    client: SCSApi,
+    client: Arc<SCSApi>,
     word_size: usize,
     codeword_size: usize,
 }
@@ -23,12 +24,10 @@ impl SetupSimCommSys {
     pub fn new(
         codec_id: &str,
         parity_matrix: ParityMatrix,
-        base_url: &str,
+        client: Arc<SCSApi>,
         word_size: usize,
         codeword_size: usize,
     ) -> core::error::Result<Self> {
-        let client = SCSApi::new(base_url)?;
-
         Ok(Self {
             codec_id: codec_id.to_string(),
             matrix: parity_matrix,

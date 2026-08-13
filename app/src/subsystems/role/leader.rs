@@ -2,6 +2,8 @@
 // SPDX-FileCopyrightText:  © 2024 - 2026 Merqury Cybersecurity Ltd <info@merqury.eu>
 
 use std::io::Write;
+#[cfg(feature = "ec_simcommsys")]
+use std::sync::Arc;
 use tokio::sync::mpsc::Receiver;
 use tracing::{debug, error, info, instrument, warn, Instrument};
 
@@ -31,7 +33,7 @@ use crate::{
 #[cfg(feature = "ec_cascade")]
 use ec_cascade::cascade::SetupCascade;
 #[cfg(feature = "ec_simcommsys")]
-use ec_simcommsys::SetupSimCommSys;
+use ec_simcommsys::{client::SCSApi, SetupSimCommSys};
 
 struct Leader {
     peer_id: PeerId,
@@ -60,6 +62,7 @@ pub async fn start_leader(
     peer_id: PeerId,
     device_id: LocalDeviceId,
     new_key: Receiver<Key<Sifted>>,
+    #[cfg(feature = "ec_simcommsys")] client: Arc<SCSApi>,
 ) {
     info!("Starting leader");
     let role = Leader {
@@ -67,7 +70,15 @@ pub async fn start_leader(
         device_id,
         connection,
     };
-    match handle_new_key(role, monitor, new_key).await {
+    match handle_new_key(
+        role,
+        monitor,
+        new_key,
+        #[cfg(feature = "ec_simcommsys")]
+        client,
+    )
+    .await
+    {
         Ok(()) => info!("Leader shut down gracefully"),
         Err(e) => warn!("Error with leader: {}", e),
     }
@@ -78,6 +89,7 @@ async fn handle_new_key(
     role: Leader,
     monitor: Monitor,
     mut new_key: Receiver<Key<Sifted>>,
+    #[cfg(feature = "ec_simcommsys")] client: Arc<SCSApi>,
 ) -> SubsystemResult {
     loop {
         let connection = role.connection();
@@ -91,7 +103,7 @@ async fn handle_new_key(
                     if role.device_id != device_id.into() {
                         error!("Unexepected key received!");
                     } else {
-                        monitor.run(process_key(role.connection(), key).in_current_span());
+                        monitor.run(process_key(role.connection(), key, #[cfg(feature = "ec_simcommsys")] client.clone()).in_current_span());
                     };
                 },
                 None => break
@@ -104,14 +116,14 @@ async fn handle_new_key(
 }
 
 #[cfg(feature = "ec_simcommsys")]
-fn create_simcommsys_stage() -> core::error::Result<SetupSimCommSys> {
+fn create_simcommsys_stage(client: Arc<SCSApi>) -> core::error::Result<SetupSimCommSys> {
     // TODO: Remove unwraps
     let parity_matrix = ParityMatrix::from_array(&PARITY_MATRIX);
 
     SetupSimCommSys::new(
         SCS_CODEC_ID,
         parity_matrix,
-        "http://localhost:8000",
+        client,
         WORD_SIZE,
         CODEWORD_SIZE,
     )
@@ -119,6 +131,7 @@ fn create_simcommsys_stage() -> core::error::Result<SetupSimCommSys> {
 
 fn create_pipeline(
     key: Key<Reconciling>,
+    #[cfg(feature = "ec_simcommsys")] client: Arc<SCSApi>,
 ) -> core::error::Result<
     Box<impl PostProcessingStep<InitialStage = Reconciling, FinalStage = Secret, Result = ()>>,
 > {
@@ -133,7 +146,7 @@ fn create_pipeline(
         all(not(rust_analyzer), feature = "ec_cascade", feature = "ec_simcommsys") => compile_error!(
             "More than one error correction feature enabled. Choose one and disable the others."
         ),
-        feature = "ec_simcommsys" => create_simcommsys_stage()?,
+        feature = "ec_simcommsys" => create_simcommsys_stage(client)?,
         feature = "ec_cascade" => SetupCascade::new(4),
         _ => compile_error!("No error correction feature enabled. One must be chosen.")
     };
@@ -163,7 +176,11 @@ where
 }
 
 #[instrument(skip_all, fields(%key_id=key.key_id()))]
-async fn process_key(connection: quinn::Connection, key: Key<Sifted>) {
+async fn process_key(
+    connection: quinn::Connection,
+    key: Key<Sifted>,
+    #[cfg(feature = "ec_simcommsys")] client: Arc<SCSApi>,
+) {
     let stream = &mut QuinnStream::connect(connection).await.unwrap();
     let buff = &mut vec![0; 1024 * 1024];
     {
@@ -196,7 +213,11 @@ async fn process_key(connection: quinn::Connection, key: Key<Sifted>) {
     }
 
     info!("Starting post processing");
-    let cur_pipeline = match create_pipeline(key.verify().start_reconciliation()) {
+    let cur_pipeline = match create_pipeline(
+        key.verify().start_reconciliation(),
+        #[cfg(feature = "ec_simcommsys")]
+        client,
+    ) {
         Ok(pipeline) => pipeline,
         Err(e) => {
             error!("Failed to construct pipeline. Error: {e}");

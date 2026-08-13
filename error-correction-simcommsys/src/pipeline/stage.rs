@@ -6,6 +6,7 @@ use core::{
     models::follower_comms::{FollowerRequests, FollowerResponse},
     traits::{PPError, PPStep, PostProcessingStep},
 };
+use std::sync::Arc;
 
 use bitvec::vec::BitVec;
 use tracing::{debug, info, warn};
@@ -28,7 +29,7 @@ pub struct SimCommSys {
     reconciled_key: Option<BitVec>,
     word_size: usize,
     codeword_size: usize,
-    client: SCSApi,
+    client: Arc<SCSApi>,
     /// Stores the follower syndromes once returned.
     follower_syndromes: Option<Vec<BitVec>>,
     follower_next_step: FollowerPendingStep,
@@ -41,7 +42,7 @@ impl SimCommSys {
         word_size: usize,
         codeword_size: usize,
         key: Key<Reconciling>,
-        client: SCSApi,
+        client: Arc<SCSApi>,
     ) -> Self {
         Self {
             error_rate,
