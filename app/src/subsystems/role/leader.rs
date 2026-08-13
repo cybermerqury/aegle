@@ -39,6 +39,8 @@ struct Leader {
     peer_id: PeerId,
     device_id: LocalDeviceId,
     connection: quinn::Connection,
+    #[cfg(feature = "ec_simcommsys")]
+    scs_client: Arc<SCSApi>,
 }
 
 impl Leader {
@@ -53,6 +55,11 @@ impl Leader {
     pub fn connection(&self) -> quinn::Connection {
         self.connection.clone()
     }
+
+    #[cfg(feature = "ec_simcommsys")]
+    pub fn scs_client(&self) -> Arc<SCSApi> {
+        self.scs_client.clone()
+    }
 }
 
 #[instrument(level="ERROR", skip_all, fields(%peer=peer_id, %device=device_id))]
@@ -62,23 +69,17 @@ pub async fn start_leader(
     peer_id: PeerId,
     device_id: LocalDeviceId,
     new_key: Receiver<Key<Sifted>>,
-    #[cfg(feature = "ec_simcommsys")] client: Arc<SCSApi>,
+    #[cfg(feature = "ec_simcommsys")] scs_client: Arc<SCSApi>,
 ) {
     info!("Starting leader");
     let role = Leader {
         peer_id,
         device_id,
         connection,
-    };
-    match handle_new_key(
-        role,
-        monitor,
-        new_key,
         #[cfg(feature = "ec_simcommsys")]
-        client,
-    )
-    .await
-    {
+        scs_client,
+    };
+    match handle_new_key(role, monitor, new_key).await {
         Ok(()) => info!("Leader shut down gracefully"),
         Err(e) => warn!("Error with leader: {}", e),
     }
@@ -89,10 +90,11 @@ async fn handle_new_key(
     role: Leader,
     monitor: Monitor,
     mut new_key: Receiver<Key<Sifted>>,
-    #[cfg(feature = "ec_simcommsys")] client: Arc<SCSApi>,
 ) -> SubsystemResult {
+    let leader = Arc::new(role);
+
     loop {
-        let connection = role.connection();
+        let connection = leader.connection();
         tokio::select! {
             _ = monitor.cancelled() =>  break,
             _ = connection.closed() => break,
@@ -100,10 +102,10 @@ async fn handle_new_key(
                 match received {
                 Some(key) => {
                     let device_id = key.device_id();
-                    if role.device_id != device_id.into() {
+                    if leader.device_id != device_id.into() {
                         error!("Unexepected key received!");
                     } else {
-                        monitor.run(process_key(role.connection(), key, #[cfg(feature = "ec_simcommsys")] client.clone()).in_current_span());
+                        monitor.run(process_key(leader.clone(), key).in_current_span());
                     };
                 },
                 None => break
@@ -176,12 +178,8 @@ where
 }
 
 #[instrument(skip_all, fields(%key_id=key.key_id()))]
-async fn process_key(
-    connection: quinn::Connection,
-    key: Key<Sifted>,
-    #[cfg(feature = "ec_simcommsys")] client: Arc<SCSApi>,
-) {
-    let stream = &mut QuinnStream::connect(connection).await.unwrap();
+async fn process_key(leader: Arc<Leader>, key: Key<Sifted>) {
+    let stream = &mut QuinnStream::connect(leader.connection()).await.unwrap();
     let buff = &mut vec![0; 1024 * 1024];
     {
         let message = RegisterKey(FullKeyId::key_id(&key), key.length());
@@ -216,7 +214,7 @@ async fn process_key(
     let cur_pipeline = match create_pipeline(
         key.verify().start_reconciliation(),
         #[cfg(feature = "ec_simcommsys")]
-        client,
+        leader.scs_client(),
     ) {
         Ok(pipeline) => pipeline,
         Err(e) => {
