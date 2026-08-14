@@ -11,7 +11,10 @@ use tokio::sync::{mpsc, oneshot};
 use tracing::{debug, error, info, instrument, warn, Instrument};
 
 #[cfg(feature = "ec_simcommsys")]
-use ec_simcommsys::{client::SCSApi, config::CodeProperties};
+use ec_simcommsys::{
+    client::SCSApi,
+    config::{CodeProperties, LdpcCodes},
+};
 
 use core::{
     key_state_machine::{Key, Reconciling, Secret, Sifted},
@@ -26,6 +29,8 @@ use core::{
 use crate::communication::key_processing::{RegisterKey, RegisterReply};
 use crate::communication::parse::{read_message, send_message};
 use crate::communication::quic::QuinnStream;
+#[cfg(feature = "ec_simcommsys")]
+use crate::errors::SubsystemError;
 use crate::errors::{MainResult, SubsystemResult};
 use crate::models::{DeviceId, FullId, FullKeyId, KeyId, LocalDeviceId, PeerId};
 
@@ -46,7 +51,7 @@ struct Follower {
     #[cfg(feature = "ec_simcommsys")]
     client: Arc<SCSApi>,
     #[cfg(feature = "ec_simcommsys")]
-    ldpc_codes: Arc<Vec<CodeProperties>>,
+    ldpc_codes: LdpcCodes,
 }
 
 impl Follower {
@@ -68,7 +73,7 @@ pub async fn start_follower(
     monitor: Monitor,
     connection: quinn::Connection,
     #[cfg(feature = "ec_simcommsys")] client: Arc<SCSApi>,
-    #[cfg(feature = "ec_simcommsys")] ldpc_codes: Arc<Vec<CodeProperties>>,
+    #[cfg(feature = "ec_simcommsys")] ldpc_codes: LdpcCodes,
     peer_id: PeerId,
     device_id: LocalDeviceId,
     new_key: mpsc::Receiver<Key<Sifted>>,
@@ -208,7 +213,7 @@ struct KeyProcessor {
     #[cfg(feature = "ec_simcommsys")]
     scs_client: Arc<SCSApi>,
     #[cfg(feature = "ec_simcommsys")]
-    ldpc_codes: Arc<Vec<CodeProperties>>,
+    ldpc_codes: LdpcCodes,
 }
 
 impl KeyProcessor {
@@ -228,7 +233,7 @@ impl KeyProcessor {
     fn new_scs(
         stream: QuinnStream,
         scs_client: Arc<SCSApi>,
-        ldpc_codes: Arc<Vec<CodeProperties>>,
+        ldpc_codes: LdpcCodes,
         full_id: FullId,
         expected_len: usize,
     ) -> Self {
@@ -351,7 +356,7 @@ impl KeyProcessor {
         let mut final_key_length: usize = key.length();
 
         #[cfg(feature = "ec_simcommsys")]
-        let mut ldpc_code: Option<&CodeProperties> = None;
+        let mut ldpc_code: Option<Arc<CodeProperties>> = None;
 
         loop {
             let request: FollowerRequests = self
@@ -410,24 +415,22 @@ impl KeyProcessor {
                     info!("Registering LDPC code '{code_id}' with SimCommSys.");
 
                     // Get the LDPC code from the config. If not present, respond as such to the leader.
-                    let Some(code) = self.ldpc_codes.iter().find(|c| c.id == code_id) else {
-                        warn!("Leader requested code \"{code_id}\", but not found in config.");
-
-                        let response = FollowerResponse::SCSRegisterCode(false);
-
-                        self.send_msg(&response).await.inspect_err(|e| {
-                            warn!("Unable to send registration result. Error: {e:?}")
+                    let code = self
+                        .ldpc_codes
+                        .iter()
+                        .find(|c| c.id == code_id)
+                        .ok_or_else(|| {
+                            SubsystemError::new(
+                                "Leader requested code '{code_id}', but not found in config.",
+                            )
                         })?;
-
-                        continue;
-                    };
 
                     let matrix = match &code.matrix {
                         MatrixDefinition::Array(arr) => ParityMatrix::from_array(&arr),
                         MatrixDefinition::AListFile(file) => ParityMatrix::from_alist_file(&file)?,
                     };
 
-                    ldpc_code = Some(code);
+                    ldpc_code = Some(code.clone());
 
                     let is_success = self
                         .scs_client
@@ -444,7 +447,7 @@ impl KeyProcessor {
                 #[cfg(feature = "ec_simcommsys")]
                 FollowerRequests::SCSSyndrome(code_id) => {
                     let code = &ldpc_code.as_ref().ok_or_else(|| {
-                        crate::errors::SubsystemError::new(
+                        SubsystemError::new(
                             "LDPC code not yet selected. Follower didn't yet register code",
                         )
                     })?;

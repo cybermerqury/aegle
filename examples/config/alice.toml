@@ -21,7 +21,7 @@ remote = "00000000-0000-0000-0000-0000000000ba"
 base_url = "http://localhost:8000"
 
 [[simcommsys.ldpc_codes]]
-id = "aegle-alice-6-4"
+id = "aegle-6-4"
 min_ber = 0.0
 max_ber = 0.1
 block_length = 6
@@ -35,7 +35,7 @@ definition = [
 ]
 
 [[simcommsys.ldpc_codes]]
-id = "aegle-alice-15-10"
+id = "aegle-15-10"
 min_ber = 0.1
 max_ber = 0.5
 block_length = 15

@@ -2,20 +2,17 @@
 // SPDX-FileCopyrightText:  © 2024 - 2026 Merqury Cybersecurity Ltd <info@merqury.eu>
 
 use std::io::Write;
-#[cfg(feature = "ec_simcommsys")]
 use std::sync::Arc;
 use tokio::sync::mpsc::Receiver;
 use tracing::{debug, error, info, instrument, warn, Instrument};
 
 use core::{
     key_state_machine::{Key, Reconciling, Secret, Sifted},
-    models::{follower_comms::FollowerRequests, parity_matrix::ParityMatrix},
+    models::follower_comms::FollowerRequests,
     sync::tasks::Monitor,
     traits::{PPError, PPStep, PostProcessingStep},
 };
 
-#[cfg(feature = "ec_simcommsys")]
-use crate::models::matrices::{CODEWORD_SIZE, PARITY_MATRIX, SCS_CODEC_ID, WORD_SIZE};
 use crate::{
     communication::{
         key_processing::{RegisterKey, RegisterReply},
@@ -33,7 +30,7 @@ use crate::{
 #[cfg(feature = "ec_cascade")]
 use ec_cascade::cascade::SetupCascade;
 #[cfg(feature = "ec_simcommsys")]
-use ec_simcommsys::{client::SCSApi, SetupSimCommSys};
+use ec_simcommsys::{client::SCSApi, config::LdpcCodes, SetupSimCommSys};
 
 struct Leader {
     peer_id: PeerId,
@@ -41,6 +38,8 @@ struct Leader {
     connection: quinn::Connection,
     #[cfg(feature = "ec_simcommsys")]
     scs_client: Arc<SCSApi>,
+    #[cfg(feature = "ec_simcommsys")]
+    ldpc_codes: LdpcCodes,
 }
 
 impl Leader {
@@ -60,6 +59,11 @@ impl Leader {
     pub fn scs_client(&self) -> Arc<SCSApi> {
         self.scs_client.clone()
     }
+
+    #[cfg(feature = "ec_simcommsys")]
+    pub fn ldpc_codes(&self) -> LdpcCodes {
+        self.ldpc_codes.clone()
+    }
 }
 
 #[instrument(level="ERROR", skip_all, fields(%peer=peer_id, %device=device_id))]
@@ -70,6 +74,7 @@ pub async fn start_leader(
     device_id: LocalDeviceId,
     new_key: Receiver<Key<Sifted>>,
     #[cfg(feature = "ec_simcommsys")] scs_client: Arc<SCSApi>,
+    #[cfg(feature = "ec_simcommsys")] ldpc_codes: LdpcCodes,
 ) {
     info!("Starting leader");
     let role = Leader {
@@ -78,6 +83,8 @@ pub async fn start_leader(
         connection,
         #[cfg(feature = "ec_simcommsys")]
         scs_client,
+        #[cfg(feature = "ec_simcommsys")]
+        ldpc_codes,
     };
     match handle_new_key(role, monitor, new_key).await {
         Ok(()) => info!("Leader shut down gracefully"),
@@ -118,22 +125,17 @@ async fn handle_new_key(
 }
 
 #[cfg(feature = "ec_simcommsys")]
-fn create_simcommsys_stage(client: Arc<SCSApi>) -> core::error::Result<SetupSimCommSys> {
-    // TODO: Remove unwraps
-    let parity_matrix = ParityMatrix::from_array(&PARITY_MATRIX);
-
-    SetupSimCommSys::new(
-        SCS_CODEC_ID,
-        parity_matrix,
-        client,
-        WORD_SIZE,
-        CODEWORD_SIZE,
-    )
+fn create_simcommsys_stage(
+    client: Arc<SCSApi>,
+    ldpc_codes: LdpcCodes,
+) -> core::error::Result<SetupSimCommSys> {
+    SetupSimCommSys::new(ldpc_codes, client)
 }
 
 fn create_pipeline(
     key: Key<Reconciling>,
     #[cfg(feature = "ec_simcommsys")] client: Arc<SCSApi>,
+    #[cfg(feature = "ec_simcommsys")] ldpc_codes: LdpcCodes,
 ) -> core::error::Result<
     Box<impl PostProcessingStep<InitialStage = Reconciling, FinalStage = Secret, Result = ()>>,
 > {
@@ -148,7 +150,7 @@ fn create_pipeline(
         all(not(rust_analyzer), feature = "ec_cascade", feature = "ec_simcommsys") => compile_error!(
             "More than one error correction feature enabled. Choose one and disable the others."
         ),
-        feature = "ec_simcommsys" => create_simcommsys_stage(client)?,
+        feature = "ec_simcommsys" => create_simcommsys_stage(client, ldpc_codes)?,
         feature = "ec_cascade" => SetupCascade::new(4),
         _ => compile_error!("No error correction feature enabled. One must be chosen.")
     };
@@ -215,6 +217,8 @@ async fn process_key(leader: Arc<Leader>, key: Key<Sifted>) {
         key.verify().start_reconciliation(),
         #[cfg(feature = "ec_simcommsys")]
         leader.scs_client(),
+        #[cfg(feature = "ec_simcommsys")]
+        leader.ldpc_codes(),
     ) {
         Ok(pipeline) => pipeline,
         Err(e) => {

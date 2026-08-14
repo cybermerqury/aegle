@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText:  © 2024 - 2026 Merqury Cybersecurity Ltd <info@merqury.eu>
 
 use core::{
+    error::ErrorKind,
     key_state_machine::Key,
     models::parity_matrix::ParityMatrix,
     traits::{PostProcessingSetup, PostProcessingStep},
@@ -10,39 +11,35 @@ use std::sync::Arc;
 
 use tracing::{debug, error};
 
-use crate::{client::SCSApi, pipeline::stage::SimCommSys};
+use crate::{
+    client::SCSApi,
+    config::{CodeProperties, LdpcCodes, MatrixDefinition},
+    pipeline::stage::SimCommSys,
+};
 
 pub struct SetupSimCommSys {
-    codec_id: String,
-    matrix: ParityMatrix,
+    ldpc_codes: LdpcCodes,
     client: Arc<SCSApi>,
-    codeword_size: u64,
 }
 
 impl SetupSimCommSys {
-    pub fn new(
-        codec_id: &str,
-        parity_matrix: ParityMatrix,
-        client: Arc<SCSApi>,
-        codeword_size: u64,
-    ) -> core::error::Result<Self> {
-        Ok(Self {
-            codec_id: codec_id.to_string(),
-            matrix: parity_matrix,
-            codeword_size,
-            client,
-        })
+    pub fn new(ldpc_codes: LdpcCodes, client: Arc<SCSApi>) -> core::error::Result<Self> {
+        Ok(Self { ldpc_codes, client })
     }
 
     /// Register this setup with simcommsys.
-    fn register_with_scs(&self) -> core::error::Result<()> {
+    fn register_with_scs(
+        &self,
+        code: &CodeProperties,
+        matrix: &ParityMatrix,
+    ) -> core::error::Result<()> {
         debug!(
             "Registering with simcommsys server as '{}'. Matrix: {:?}",
-            self.codec_id, self.matrix
+            code.id, matrix
         );
 
         self.client
-            .register(&self.codec_id, &self.matrix)
+            .register(&code.id, matrix)
             .inspect_err(|e| error!("Error during setup. Error: {e:?}"))
     }
 }
@@ -58,12 +55,30 @@ impl PostProcessingSetup for SetupSimCommSys {
         key: Key<Self::InitialStage>,
         error_rate: Self::SetupArgs,
     ) -> Result<Self::Worker, Self::SetupErr> {
-        self.register_with_scs()?;
+        let code = self.ldpc_codes.first().ok_or_else(|| {
+            core::error::Error::new(
+                ErrorKind::InconsistentData,
+                "No LDPC codes defined in config",
+            )
+        })?;
+
+        let matrix = match &code.matrix {
+            MatrixDefinition::Array(arr) => ParityMatrix::from_array(arr),
+            MatrixDefinition::AListFile(file_path) => ParityMatrix::from_alist_file(&file_path)
+                .map_err(|e| {
+                    core::error::Error::new(
+                        ErrorKind::ConfigParse,
+                        format!("Failed to load code from alist file. Error: {e}"),
+                    )
+                })?,
+        };
+
+        self.register_with_scs(code, &matrix)?;
 
         Ok(SimCommSys::new(
             error_rate,
-            self.codec_id,
-            self.codeword_size,
+            code.id.clone(),
+            code.block_length,
             key,
             self.client,
         ))

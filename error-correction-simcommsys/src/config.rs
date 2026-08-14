@@ -8,7 +8,7 @@ use serde::Deserialize;
 #[derive(Debug, Deserialize)]
 pub struct SimCommSysConfig {
     pub base_url: String,
-    pub ldpc_codes: Arc<Vec<CodeProperties>>,
+    pub ldpc_codes: LdpcCodes,
 }
 
 #[derive(Debug, Deserialize)]
@@ -27,3 +27,5 @@ pub enum MatrixDefinition {
     #[serde(rename = "file")]
     AListFile(PathBuf),
 }
+
+pub type LdpcCodes = Arc<Vec<Arc<CodeProperties>>>;
