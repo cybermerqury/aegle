@@ -9,7 +9,7 @@ use core::{
 };
 use std::sync::Arc;
 
-use tracing::{debug, error};
+use tracing::{debug, error, info, instrument};
 
 use crate::{
     client::SCSApi,
@@ -28,18 +28,33 @@ impl SetupSimCommSys {
     }
 
     /// Pick an LDPC code based on the ber and key length.
+    #[instrument(skip(self))]
     fn pick_code(&self, ber: f64, key_len: u64) -> Option<Arc<CodeProperties>> {
-        debug!("Choosing appropriate LDPC code. Target BER: {ber}, key length: {key_len}");
+        debug!("Choosing appropriate LDPC code.");
+        let mut current_required_blocks = f64::MAX;
+        let mut selected_code = None;
 
-        self.ldpc_codes.iter().find_map(|code| {
-            let ber_range = code.min_ber..=code.max_ber;
+        for code in self.ldpc_codes.iter() {
+            let ber_range = code.min_ber..code.max_ber;
 
-            if ber_range.contains(&ber) && key_len >= code.block_length {
-                Some(code.clone())
-            } else {
-                None
+            if !ber_range.contains(&ber) {
+                continue;
             }
-        })
+
+            let required_blocks = key_len as f64 / code.block_length as f64;
+
+            debug!(
+                "Checking code '{}'. Required blocks: {:.02}",
+                code.id, required_blocks
+            );
+
+            if required_blocks >= 1. && required_blocks < current_required_blocks {
+                current_required_blocks = required_blocks;
+                selected_code = Some(code.clone());
+            }
+        }
+
+        selected_code
     }
 
     /// Register this setup with simcommsys.
@@ -76,6 +91,8 @@ impl PostProcessingSetup for SetupSimCommSys {
                 "No LDPC codes defined in config",
             )
         })?;
+
+        info!("Selected code '{}'.", code.id);
 
         let matrix = match &code.matrix {
             MatrixDefinition::Array(arr) => ParityMatrix::from_array(arr),

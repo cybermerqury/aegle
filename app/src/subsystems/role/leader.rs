@@ -139,7 +139,7 @@ fn create_pipeline(
 ) -> core::error::Result<
     Box<impl PostProcessingStep<InitialStage = Reconciling, FinalStage = Secret, Result = ()>>,
 > {
-    let pipeline = BEREstimation::new(key, 0.05, 0.95).pipe(SetupBerLimit::new(0.09));
+    let pipeline = BEREstimation::new(key, 0.05, 0.95).pipe(SetupBerLimit::new(0.11));
 
     // TODO Fix SCS base url passing.
     // Select the error correction stage to use by feature.
