@@ -28,6 +28,10 @@ impl SetupSimCommSys {
     }
 
     /// Pick an LDPC code based on the ber and key length.
+    /// Chooses the best code based on the below process:
+    /// 1. Filter those codes which do not support the estimated BER.
+    /// 2. Filter out codes which do not fit the key length.
+    /// 3. Prefer the code which has the least key bits wasted (those trailing bits which do not fit into another block).
     #[instrument(skip(self))]
     fn pick_code(&self, ber: f64, key_len: u64) -> Option<Arc<CodeProperties>> {
         debug!("Choosing appropriate LDPC code.");
