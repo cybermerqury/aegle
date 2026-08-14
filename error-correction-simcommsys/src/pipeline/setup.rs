@@ -27,10 +27,25 @@ impl SetupSimCommSys {
         Ok(Self { ldpc_codes, client })
     }
 
+    /// Pick an LDPC code based on the ber and key length.
+    fn pick_code(&self, ber: f64, key_len: u64) -> Option<Arc<CodeProperties>> {
+        debug!("Choosing appropriate LDPC code. Target BER: {ber}, key length: {key_len}");
+
+        self.ldpc_codes.iter().find_map(|code| {
+            let ber_range = code.min_ber..=code.max_ber;
+
+            if ber_range.contains(&ber) && key_len >= code.block_length {
+                Some(code.clone())
+            } else {
+                None
+            }
+        })
+    }
+
     /// Register this setup with simcommsys.
     fn register_with_scs(
         &self,
-        code: &CodeProperties,
+        code: &Arc<CodeProperties>,
         matrix: &ParityMatrix,
     ) -> core::error::Result<()> {
         debug!(
@@ -53,9 +68,9 @@ impl PostProcessingSetup for SetupSimCommSys {
     fn setup(
         self,
         key: Key<Self::InitialStage>,
-        error_rate: Self::SetupArgs,
+        ber: Self::SetupArgs,
     ) -> Result<Self::Worker, Self::SetupErr> {
-        let code = self.ldpc_codes.first().ok_or_else(|| {
+        let code = self.pick_code(ber, key.length() as u64).ok_or_else(|| {
             core::error::Error::new(
                 ErrorKind::InconsistentData,
                 "No LDPC codes defined in config",
@@ -73,14 +88,8 @@ impl PostProcessingSetup for SetupSimCommSys {
                 })?,
         };
 
-        self.register_with_scs(code, &matrix)?;
+        self.register_with_scs(&code, &matrix)?;
 
-        Ok(SimCommSys::new(
-            error_rate,
-            code.id.clone(),
-            code.block_length,
-            key,
-            self.client,
-        ))
+        Ok(SimCommSys::new(ber, code, key, self.client))
     }
 }

@@ -12,7 +12,7 @@ pub enum FollowerRequests {
     #[cfg(feature = "ec_simcommsys")]
     SCSRegisterCode(String),
     #[cfg(feature = "ec_simcommsys")]
-    SCSSyndrome(String),
+    SCSSyndrome,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]

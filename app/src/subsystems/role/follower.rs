@@ -445,7 +445,7 @@ impl KeyProcessor {
                     })?;
                 }
                 #[cfg(feature = "ec_simcommsys")]
-                FollowerRequests::SCSSyndrome(code_id) => {
+                FollowerRequests::SCSSyndrome => {
                     let code = &ldpc_code.as_ref().ok_or_else(|| {
                         SubsystemError::new(
                             "LDPC code not yet selected. Follower didn't yet register code",
@@ -484,7 +484,7 @@ impl KeyProcessor {
                     for codeword in &codewords {
                         let syndrome = self
                             .scs_client
-                            .calculate_syndrome(&code_id, &codeword)
+                            .calculate_syndrome(&code.id, &codeword)
                             .inspect_err(|e| warn!("Syndrome calculation failed. Error: {e}"))?;
 
                         debug!("Syndrome for codeword {codeword}: {syndrome}");

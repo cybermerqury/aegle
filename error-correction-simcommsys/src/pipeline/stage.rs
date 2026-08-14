@@ -11,7 +11,7 @@ use std::sync::Arc;
 use bitvec::vec::BitVec;
 use tracing::{debug, info, warn};
 
-use crate::client::SCSApi;
+use crate::{client::SCSApi, config::CodeProperties};
 
 /// Represents the next step to be performed by the follower.
 #[derive(Debug, Clone, Copy)]
@@ -23,11 +23,10 @@ enum FollowerPendingStep {
 
 pub struct SimCommSys {
     error_rate: f64,
-    codec_id: String,
+    code: Arc<CodeProperties>,
     key: Key<Reconciling>,
     /// Contains the final error-corrected key data.
     reconciled_key: Option<BitVec>,
-    codeword_size: u64,
     client: Arc<SCSApi>,
     /// Stores the follower syndromes once returned.
     follower_syndromes: Option<Vec<BitVec>>,
@@ -37,17 +36,15 @@ pub struct SimCommSys {
 impl SimCommSys {
     pub(crate) fn new(
         error_rate: f64,
-        codec_id: String,
-        codeword_size: u64,
+        code: Arc<CodeProperties>,
         key: Key<Reconciling>,
         client: Arc<SCSApi>,
     ) -> Self {
         Self {
             error_rate,
-            codec_id,
+            code,
             key,
             reconciled_key: None,
-            codeword_size,
             client,
             follower_syndromes: None,
             follower_next_step: FollowerPendingStep::Register,
@@ -68,11 +65,11 @@ impl PostProcessingStep for SimCommSys {
     fn step(&mut self) -> Result<PPStep<Self::Result, FollowerRequests>, PPError> {
         match self.follower_next_step {
             FollowerPendingStep::Register => Ok(PPStep::GetUpdate(
-                FollowerRequests::SCSRegisterCode(self.codec_id.clone()),
+                FollowerRequests::SCSRegisterCode(self.code.id.clone()),
             )),
-            FollowerPendingStep::GetSyndrome => Ok(PPStep::GetUpdate(
-                FollowerRequests::SCSSyndrome(self.codec_id.clone()),
-            )),
+            FollowerPendingStep::GetSyndrome => {
+                Ok(PPStep::GetUpdate(FollowerRequests::SCSSyndrome))
+            }
             FollowerPendingStep::DecodeKey => {
                 info!("Decoding key of {} bits.", self.key.length());
 
@@ -82,12 +79,12 @@ impl PostProcessingStep for SimCommSys {
                     ));
                 };
 
-                let (codewords, remainder) = self.key.chunks(self.codeword_size);
+                let (codewords, remainder) = self.key.chunks(self.code.block_length);
 
                 if let Some(remainder) = remainder {
                     warn!(
                         "Key does not fit cleanly into word size. Word size: {}, key size: {}, remaining bits: {}",
-                        self.codeword_size,
+                        self.code.block_length,
                         self.key.get_interior_ref().len(),
                         remainder.len()
                     );
@@ -109,7 +106,7 @@ impl PostProcessingStep for SimCommSys {
 
                 for (codeword, syndrome) in codewords.into_iter().zip(follower_syndromes) {
                     let corrected_codeword = match self.client.decode(
-                        &self.codec_id,
+                        &self.code.id,
                         self.error_rate,
                         &codeword,
                         syndrome,
