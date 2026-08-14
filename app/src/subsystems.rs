@@ -58,6 +58,8 @@ pub fn start_subsystems(config: ModuleConfig) -> MainResult<TaskManager<Subsyste
     let module_args = PeerManagementArgs {
         uuid: module.uuid,
         client_config: module.client_config()?,
+        #[cfg(feature = "ec_simcommsys")]
+        scs_client: Arc::new(SCSApi::new(&config.simcommsys.base_url)?),
     };
 
     let (qkd_sender, qkd_receiver) = tokio::sync::mpsc::channel(1024);
@@ -70,15 +72,8 @@ pub fn start_subsystems(config: ModuleConfig) -> MainResult<TaskManager<Subsyste
         let _ = panic_sender.clone().try_send(());
     }));
 
-    #[cfg(feature = "ec_simcommsys")]
-    let scs_client = Arc::new(SCSApi::new(&config.simcommsys.base_url)?);
-
     spawn_subsystem!(tm, wait_for_panic(.monitor, panic_recv));
 
-    /// TODO Improve feature-conditional requirements (scs client).
-    #[cfg(feature = "ec_simcommsys")]
-    spawn_subsystem!(tm, peer_management_subsystem(module_args, .monitor, status, send_new_stream.clone(), recv_new_stream, qkd_sender, scs_client));
-    #[cfg(not(feature = "ec_simcommsys"))]
     spawn_subsystem!(tm, peer_management_subsystem(module_args, .monitor, status, send_new_stream.clone(), recv_new_stream, qkd_sender));
 
     let config = module.server_config()?;

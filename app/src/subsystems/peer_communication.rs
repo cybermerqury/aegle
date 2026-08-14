@@ -261,7 +261,6 @@ pub async fn peer_management_subsystem(
     send_updates: Sender<PeerUpdate>,
     mut new_stream: Receiver<PeerUpdate>,
     request_qkd: Sender<RequestQkdKeys>,
-    #[cfg(feature = "ec_simcommsys")] scs_client: Arc<SCSApi>,
 ) -> SubsystemResult {
     loop {
         tokio::select! {
@@ -277,7 +276,7 @@ pub async fn peer_management_subsystem(
                             info!("Sending Acceptance");
                             send_message(&mut stream, &ConnectionStatus::Accepted).await?;
                         };
-                        monitor.run(launch_peer_communication(monitor.clone(), peer_id, device_id, stream, side, send_updates.clone(), request_qkd.clone(), #[cfg(feature = "ec_simcommsys")] scs_client.clone()));
+                        monitor.run(launch_peer_communication(monitor.clone(), peer_id, device_id, stream, side, send_updates.clone(), request_qkd.clone(), #[cfg(feature = "ec_simcommsys")] module_args.scs_client.clone()));
                     },
                     Ok(Some(StreamAction::RejectStream(mut stream, reason))) => {
                         info!("Rejecting stream: {:?}", reason);
