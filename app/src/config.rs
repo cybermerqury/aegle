@@ -57,7 +57,7 @@ pub struct ModuleConfig {
     pub module: Module,
     pub peers: Vec<PeerInfo>,
     #[cfg(feature = "ec_simcommsys")]
-    pub simcommsys: Arc<ec_simcommsys::config::SimCommSysConfig>,
+    pub simcommsys: ec_simcommsys::config::SimCommSysConfig,
 }
 
 impl ModuleConfig {

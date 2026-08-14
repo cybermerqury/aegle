@@ -158,8 +158,8 @@ impl Key<Reconciling> {
     }
 
     /// Chunks the key into codeword-long vectors.
-    pub fn chunks(&self, codeword_len: usize) -> (Vec<&BitSlice>, Option<&BitSlice>) {
-        let codeword_iter = self.get_interior_ref().chunks_exact(codeword_len);
+    pub fn chunks(&self, codeword_len: u64) -> (Vec<&BitSlice>, Option<&BitSlice>) {
+        let codeword_iter = self.get_interior_ref().chunks_exact(codeword_len as usize);
 
         let remainder = codeword_iter.remainder();
         let remainder = match remainder.is_empty() {

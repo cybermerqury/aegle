@@ -60,6 +60,8 @@ pub fn start_subsystems(config: ModuleConfig) -> MainResult<TaskManager<Subsyste
         client_config: module.client_config()?,
         #[cfg(feature = "ec_simcommsys")]
         scs_client: Arc::new(SCSApi::new(&config.simcommsys.base_url)?),
+        #[cfg(feature = "ec_simcommsys")]
+        ldpc_codes: config.simcommsys.ldpc_codes,
     };
 
     let (qkd_sender, qkd_receiver) = tokio::sync::mpsc::channel(1024);

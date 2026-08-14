@@ -27,8 +27,7 @@ pub struct SimCommSys {
     key: Key<Reconciling>,
     /// Contains the final error-corrected key data.
     reconciled_key: Option<BitVec>,
-    word_size: usize,
-    codeword_size: usize,
+    codeword_size: u64,
     client: Arc<SCSApi>,
     /// Stores the follower syndromes once returned.
     follower_syndromes: Option<Vec<BitVec>>,
@@ -39,8 +38,7 @@ impl SimCommSys {
     pub(crate) fn new(
         error_rate: f64,
         codec_id: String,
-        word_size: usize,
-        codeword_size: usize,
+        codeword_size: u64,
         key: Key<Reconciling>,
         client: Arc<SCSApi>,
     ) -> Self {
@@ -49,7 +47,6 @@ impl SimCommSys {
             codec_id,
             key,
             reconciled_key: None,
-            word_size,
             codeword_size,
             client,
             follower_syndromes: None,

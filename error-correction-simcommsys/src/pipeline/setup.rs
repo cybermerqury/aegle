@@ -16,8 +16,7 @@ pub struct SetupSimCommSys {
     codec_id: String,
     matrix: ParityMatrix,
     client: Arc<SCSApi>,
-    word_size: usize,
-    codeword_size: usize,
+    codeword_size: u64,
 }
 
 impl SetupSimCommSys {
@@ -25,13 +24,11 @@ impl SetupSimCommSys {
         codec_id: &str,
         parity_matrix: ParityMatrix,
         client: Arc<SCSApi>,
-        word_size: usize,
-        codeword_size: usize,
+        codeword_size: u64,
     ) -> core::error::Result<Self> {
         Ok(Self {
             codec_id: codec_id.to_string(),
             matrix: parity_matrix,
-            word_size,
             codeword_size,
             client,
         })
@@ -66,7 +63,6 @@ impl PostProcessingSetup for SetupSimCommSys {
         Ok(SimCommSys::new(
             error_rate,
             self.codec_id,
-            self.word_size,
             self.codeword_size,
             key,
             self.client,

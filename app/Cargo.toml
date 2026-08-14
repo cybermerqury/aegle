@@ -7,7 +7,7 @@ license = "PolyForm-Noncommercial-1.0.0"
 [features]
 default = ["ec_cascade"]
 ec_cascade = ["dep:ec_cascade"]
-ec_simcommsys = ["dep:ec_simcommsys", "core/ec_simcommsys", "serde/rc"]
+ec_simcommsys = ["dep:ec_simcommsys", "core/ec_simcommsys"]
 
 [dependencies]
 bincode = { workspace = true }

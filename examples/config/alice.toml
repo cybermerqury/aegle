@@ -24,6 +24,7 @@ base_url = "http://localhost:8000"
 id = "aegle-alice-6-4"
 min_ber = 0.0
 max_ber = 0.1
+block_length = 6
 
 [simcommsys.ldpc_codes.matrix]
 definition = [
@@ -37,6 +38,7 @@ definition = [
 id = "aegle-alice-15-10"
 min_ber = 0.1
 max_ber = 0.5
+block_length = 15
 
 [simcommsys.ldpc_codes.matrix]
 definition = [

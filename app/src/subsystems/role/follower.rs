@@ -11,7 +11,7 @@ use tokio::sync::{mpsc, oneshot};
 use tracing::{debug, error, info, instrument, warn, Instrument};
 
 #[cfg(feature = "ec_simcommsys")]
-use ec_simcommsys::client::SCSApi;
+use ec_simcommsys::{client::SCSApi, config::CodeProperties};
 
 use core::{
     key_state_machine::{Key, Reconciling, Secret, Sifted},
@@ -27,7 +27,6 @@ use crate::communication::key_processing::{RegisterKey, RegisterReply};
 use crate::communication::parse::{read_message, send_message};
 use crate::communication::quic::QuinnStream;
 use crate::errors::{MainResult, SubsystemResult};
-use crate::models::matrices::{CODEWORD_SIZE, PARITY_MATRIX, WORD_SIZE};
 use crate::models::{DeviceId, FullId, FullKeyId, KeyId, LocalDeviceId, PeerId};
 
 type NewKeyEntry = (
@@ -46,6 +45,8 @@ struct Follower {
     connection: quinn::Connection,
     #[cfg(feature = "ec_simcommsys")]
     client: Arc<SCSApi>,
+    #[cfg(feature = "ec_simcommsys")]
+    ldpc_codes: Arc<Vec<CodeProperties>>,
 }
 
 impl Follower {
@@ -67,6 +68,7 @@ pub async fn start_follower(
     monitor: Monitor,
     connection: quinn::Connection,
     #[cfg(feature = "ec_simcommsys")] client: Arc<SCSApi>,
+    #[cfg(feature = "ec_simcommsys")] ldpc_codes: Arc<Vec<CodeProperties>>,
     peer_id: PeerId,
     device_id: LocalDeviceId,
     new_key: mpsc::Receiver<Key<Sifted>>,
@@ -79,6 +81,8 @@ pub async fn start_follower(
         connection: connection.clone(),
         #[cfg(feature = "ec_simcommsys")]
         client,
+        #[cfg(feature = "ec_simcommsys")]
+        ldpc_codes,
     };
     let (key_sender, key_receiver) = tokio::sync::mpsc::channel(1024);
     async fn wait_for_cancel(inner_monitor: Monitor, outer_monitor: Monitor) -> SubsystemResult {
@@ -173,7 +177,10 @@ async fn handle_new_key(
                         let (_, rx) = keys_working.entry(full_id)
                                         .or_insert_with(create_entry);
 
-                        let processor = KeyProcessor::new(stream, #[cfg(feature = "ec_simcommsys")] role.client.clone(), full_id, register_key.len());
+                        let processor = cfg_select! {
+                            feature = "ec_simcommsys" => KeyProcessor::new_scs(stream, role.client.clone(), role.ldpc_codes.clone(), full_id, register_key.len()),
+                            _ => KeyProcessor::new(stream, full_id, register_key.len())
+                        };
 
                         match rx.take() {
                             Some(receiver) => {
@@ -200,21 +207,35 @@ struct KeyProcessor {
     expected_len: usize,
     #[cfg(feature = "ec_simcommsys")]
     scs_client: Arc<SCSApi>,
+    #[cfg(feature = "ec_simcommsys")]
+    ldpc_codes: Arc<Vec<CodeProperties>>,
 }
 
 impl KeyProcessor {
     const WAIT_FOR_KEY_TIMEOUT: Duration = Duration::from_secs(30);
 
-    fn new(
+    #[cfg(not(feature = "ec_simcommsys"))]
+    fn new(stream: QuinnStream, full_id: FullId, expected_len: usize) -> Self {
+        Self {
+            stream,
+            key_id: full_id.0,
+            device_id: full_id.1,
+            expected_len,
+        }
+    }
+
+    #[cfg(feature = "ec_simcommsys")]
+    fn new_scs(
         stream: QuinnStream,
-        #[cfg(feature = "ec_simcommsys")] scs_client: Arc<SCSApi>,
+        scs_client: Arc<SCSApi>,
+        ldpc_codes: Arc<Vec<CodeProperties>>,
         full_id: FullId,
         expected_len: usize,
     ) -> Self {
         Self {
             stream,
-            #[cfg(feature = "ec_simcommsys")]
             scs_client,
+            ldpc_codes,
             key_id: full_id.0,
             device_id: full_id.1,
             expected_len,
@@ -329,6 +350,9 @@ impl KeyProcessor {
         let mut leaked_bits = 0;
         let mut final_key_length: usize = key.length();
 
+        #[cfg(feature = "ec_simcommsys")]
+        let mut ldpc_code: Option<&CodeProperties> = None;
+
         loop {
             let request: FollowerRequests = self
                 .recv_msg(buff)
@@ -381,9 +405,29 @@ impl KeyProcessor {
                 }
                 #[cfg(feature = "ec_simcommsys")]
                 FollowerRequests::SCSRegisterCode(code_id) => {
+                    use ec_simcommsys::config::MatrixDefinition;
+
                     info!("Registering LDPC code '{code_id}' with SimCommSys.");
 
-                    let matrix = ParityMatrix::from_array(&PARITY_MATRIX);
+                    // Get the LDPC code from the config. If not present, respond as such to the leader.
+                    let Some(code) = self.ldpc_codes.iter().find(|c| c.id == code_id) else {
+                        warn!("Leader requested code \"{code_id}\", but not found in config.");
+
+                        let response = FollowerResponse::SCSRegisterCode(false);
+
+                        self.send_msg(&response).await.inspect_err(|e| {
+                            warn!("Unable to send registration result. Error: {e:?}")
+                        })?;
+
+                        continue;
+                    };
+
+                    let matrix = match &code.matrix {
+                        MatrixDefinition::Array(arr) => ParityMatrix::from_array(&arr),
+                        MatrixDefinition::AListFile(file) => ParityMatrix::from_alist_file(&file)?,
+                    };
+
+                    ldpc_code = Some(code);
 
                     let is_success = self
                         .scs_client
@@ -399,20 +443,26 @@ impl KeyProcessor {
                 }
                 #[cfg(feature = "ec_simcommsys")]
                 FollowerRequests::SCSSyndrome(code_id) => {
-                    let (codewords, remainder) = key.chunks(CODEWORD_SIZE);
+                    let code = &ldpc_code.as_ref().ok_or_else(|| {
+                        crate::errors::SubsystemError::new(
+                            "LDPC code not yet selected. Follower didn't yet register code",
+                        )
+                    })?;
+
+                    let (codewords, remainder) = key.chunks(code.block_length);
 
                     let remainder_bits = match remainder {
                         Some(remainder) => {
                             warn!(
-                                "Key does not fit cleanly into word size. Word size: {}, key size: {}, remaining bits: {}",
-                                CODEWORD_SIZE,
+                                "Key does not fit cleanly into block length. Block length: {}, key size: {}, remaining bits: {}",
+                                code.block_length,
                                 key.get_interior_ref().len(),
                                 remainder.len()
                             );
                             remainder.len()
                         }
                         None => {
-                            debug!("Key divisible into chunk length.");
+                            debug!("Key divisible into block length.");
                             0
                         }
                     };
@@ -420,7 +470,8 @@ impl KeyProcessor {
                     final_key_length = key.get_interior_ref().len() - remainder_bits;
 
                     debug!(
-                        "Key of {} bits chunked into {WORD_SIZE}-bit words. Remainder: {} bits",
+                        "Key of {} bits chunked into {}-bit words. Remainder: {} bits",
+                        code.block_length,
                         key.get_interior_ref().len(),
                         remainder_bits
                     );

@@ -5,9 +5,9 @@ edition = "2024"
 license = "PolyForm-Noncommercial-1.0.0"
 
 [dependencies]
-core = { workspace = true, features = ["reqwest", "ec_simcommsys"] }
+core = { workspace = true, features = [ "reqwest", "ec_simcommsys" ] }
 reqwest = { workspace = true }
-serde = { workspace = true }
+serde = { workspace = true, features = [ "rc" ] }
 serde_json = { workspace = true }
 tracing = { workspace = true }
 tokio = { workspace = true }

@@ -5,13 +5,12 @@ pub mod ber_estimation;
 pub mod privacy_amplification;
 pub mod update_qkd;
 
-pub mod matrices;
 mod peer;
 
 use core::generate_uuid_newtype;
 use core::key_state_machine::Key;
 #[cfg(feature = "ec_simcommsys")]
-use ec_simcommsys::client::SCSApi;
+use ec_simcommsys::{client::SCSApi, config::CodeProperties};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::Display;
@@ -28,6 +27,8 @@ pub struct PeerManagementArgs {
     pub client_config: quinn::ClientConfig,
     #[cfg(feature = "ec_simcommsys")]
     pub scs_client: Arc<SCSApi>,
+    #[cfg(feature = "ec_simcommsys")]
+    pub ldpc_codes: Arc<Vec<CodeProperties>>,
 }
 
 generate_uuid_newtype!(DeviceId);
