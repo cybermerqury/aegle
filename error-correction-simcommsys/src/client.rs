@@ -231,7 +231,7 @@ pub fn parity_matrix_to_codec(matrix: &ParityMatrix) -> Result<String> {
 
     codec_config.push_str("# Version\n5\n");
     codec_config.push_str("# SPA type (trad|gdl)\ngdl\n");
-    codec_config.push_str("# Number of iterations\n50\n");
+    codec_config.push_str("# Number of iterations\n100\n");
     codec_config.push_str("# Clipping method\nzero\n");
     codec_config.push_str("# Value of almostzero\n1e-100\n");
     codec_config.push_str("# Reduce generator matrix to REF?\n1\n");

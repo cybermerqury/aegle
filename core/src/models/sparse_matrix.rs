@@ -54,7 +54,7 @@ impl SparseMatrix {
         Self::from_alist(alist_file)
     }
 
-    pub fn from_alist_path_short(file: &Path) -> Result<Self, SparseMatrixError> {
+    pub fn from_alist_file_short(file: &Path) -> Result<Self, SparseMatrixError> {
         let alist_file = File::open(file)?;
 
         Self::from_alist_short(alist_file)

@@ -100,13 +100,14 @@ impl PostProcessingSetup for SetupSimCommSys {
 
         let matrix = match &code.matrix {
             MatrixDefinition::Array(arr) => ParityMatrix::from_array(arr),
-            MatrixDefinition::AListFile(file_path) => ParityMatrix::from_alist_file(&file_path)
-                .map_err(|e| {
+            MatrixDefinition::AListFile(file_path) => {
+                ParityMatrix::from_alist_file_short(&file_path).map_err(|e| {
                     core::error::Error::new(
                         ErrorKind::ConfigParse,
                         format!("Failed to load code from alist file. Error: {e}"),
                     )
-                })?,
+                })?
+            }
         };
 
         self.register_with_scs(&code, &matrix)?;

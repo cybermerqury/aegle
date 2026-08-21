@@ -27,9 +27,21 @@ impl ParityMatrix {
         })
     }
 
+    pub fn from_alist_str_short(src: &str) -> Result<Self, SparseMatrixError> {
+        Ok(Self {
+            inner: SparseMatrix::from_alist_str_short(src)?,
+        })
+    }
+
     pub fn from_alist_file(file: &Path) -> Result<Self, SparseMatrixError> {
         Ok(Self {
             inner: SparseMatrix::from_alist_file(file)?,
+        })
+    }
+
+    pub fn from_alist_file_short(file: &Path) -> Result<Self, SparseMatrixError> {
+        Ok(Self {
+            inner: SparseMatrix::from_alist_file_short(file)?,
         })
     }
 

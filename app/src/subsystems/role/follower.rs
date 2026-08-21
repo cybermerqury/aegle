@@ -427,7 +427,9 @@ impl KeyProcessor {
 
                     let matrix = match &code.matrix {
                         MatrixDefinition::Array(arr) => ParityMatrix::from_array(&arr),
-                        MatrixDefinition::AListFile(file) => ParityMatrix::from_alist_file(&file)?,
+                        MatrixDefinition::AListFile(file) => {
+                            ParityMatrix::from_alist_file_short(&file)?
+                        }
                     };
 
                     ldpc_code = Some(code.clone());
