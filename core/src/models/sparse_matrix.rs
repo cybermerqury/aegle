@@ -9,6 +9,8 @@ use std::{
     str::FromStr,
 };
 
+use tracing::instrument;
+
 use crate::error::sparse_matrix::SparseMatrixError;
 
 const EMPTY: [usize; 0] = [];
@@ -52,8 +54,18 @@ impl SparseMatrix {
         Self::from_alist(alist_file)
     }
 
+    pub fn from_alist_path_short(file: &Path) -> Result<Self, SparseMatrixError> {
+        let alist_file = File::open(file)?;
+
+        Self::from_alist_short(alist_file)
+    }
+
     pub fn from_alist_str(src: &str) -> Result<Self, SparseMatrixError> {
         Self::from_alist(src.as_bytes())
+    }
+
+    pub fn from_alist_str_short(src: &str) -> Result<Self, SparseMatrixError> {
+        Self::from_alist_short(src.as_bytes())
     }
 
     pub fn from_alist<R>(src: R) -> Result<Self, SparseMatrixError>
@@ -70,49 +82,97 @@ impl SparseMatrix {
 
         // Load the variables.
         let variables = populate_neighbours(lines.by_ref(), num_variables)?;
-        // SAFETY: This is safe as if variables is empty populate_neighbours would return an Err
-        let actual_variable_neighbours = variables.values().map(|x| x.len()).collect::<Vec<_>>();
-        let read_max_variable_nbrs = *actual_variable_neighbours.iter().max().unwrap();
 
-        if expected_variable_neighbours != actual_variable_neighbours {
-            return Err(SparseMatrixError::BadAListFile(format!(
-                "variables weights do not match variable weights distribution found. Expected: {:?}, got: {:?}",
-                expected_variable_neighbours, actual_variable_neighbours
-            )));
-        }
-
-        if read_max_variable_nbrs != max_variable_neighbours {
-            return Err(SparseMatrixError::BadAListFile(format!(
-                "Unexpected largest number of variable neighbours. Expected: {}, got: {}",
-                max_factor_neighbours, read_max_variable_nbrs
-            )));
-        }
+        Self::validate_neighbours(
+            &variables,
+            &expected_variable_neighbours,
+            max_variable_neighbours,
+        )?;
 
         // Load the factors.
         let factors = populate_neighbours(lines.by_ref(), num_factors)?;
-        let actual_factor_neighbours = factors.values().map(|x| x.len()).collect::<Vec<_>>();
-        // SAFETY: This is safe as if factors is empty populate_neighbours would return an Err
-        let read_max_factor_nbrs = *actual_factor_neighbours.iter().max().unwrap();
 
-        if expected_factor_neighbours != actual_factor_neighbours {
-            return Err(SparseMatrixError::BadAListFile(format!(
-                "Factor weights do not match factor weights distribution found. Expected: {:?}, got: {:?}",
-                expected_factor_neighbours, actual_factor_neighbours
-            )));
-        }
-
-        if read_max_factor_nbrs != max_factor_neighbours {
-            return Err(SparseMatrixError::BadAListFile(format!(
-                "Unexpected largest number of factor neighbours. Expected: {}, got: {}",
-                max_factor_neighbours, read_max_factor_nbrs
-            )));
-        }
+        Self::validate_neighbours(&factors, &expected_factor_neighbours, max_factor_neighbours)?;
 
         if lines.next().is_none() {
             Ok(Self { variables, factors })
         } else {
             Err(SparseMatrixError::FileTooLong)
         }
+    }
+
+    /// Load an alist without reading the factors.
+    /// This follows the usual operation but instead transposes the variables to obtain the factors.
+    pub fn from_alist_short<R>(src: R) -> Result<Self, SparseMatrixError>
+    where
+        R: Read,
+    {
+        let mut lines = BufReader::new(src).lines();
+
+        // Load all metadata.
+        let (num_variables, num_factors) = read_tuple(lines.by_ref())?;
+        let (max_variable_neighbours, max_factor_neighbours) = read_tuple(lines.by_ref())?;
+        let expected_variable_neighbours = read_vec(lines.by_ref())?;
+        let expected_factor_neighbours = read_vec(lines.by_ref())?;
+
+        // Load the variables.
+        let variables = populate_neighbours(lines.by_ref(), num_variables)?;
+
+        Self::validate_neighbours(
+            &variables,
+            &expected_variable_neighbours,
+            max_variable_neighbours,
+        )?;
+
+        // Load the factors by transposing the variables.
+        let mut factors: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
+
+        for (i, vars) in &variables {
+            for f_index in vars {
+                factors.entry(*f_index).or_default().push(*i);
+            }
+        }
+
+        // Ensure the exact number of factors is found.
+        match factors.len() {
+            n if n < num_factors => Err(SparseMatrixError::FileTooShort),
+            n if n > num_factors => Err(SparseMatrixError::FileTooLong),
+            _ => Ok(()),
+        }?;
+
+        Self::validate_neighbours(&factors, &expected_factor_neighbours, max_factor_neighbours)?;
+
+        if lines.next().is_none() {
+            Ok(Self { variables, factors })
+        } else {
+            Err(SparseMatrixError::FileTooLong)
+        }
+    }
+
+    fn validate_neighbours(
+        neighbours: &BTreeMap<usize, Vec<usize>>,
+        expected_neighbours: &[usize],
+        max_neightbours_weight: usize,
+    ) -> Result<(), SparseMatrixError> {
+        let actual_factor_neighbours = neighbours.values().map(|x| x.len()).collect::<Vec<_>>();
+        // SAFETY: This is safe as if neighbours is empty populate_neighbours would return an Err
+        let read_max_factor_nbrs = *actual_factor_neighbours.iter().max().unwrap();
+
+        if expected_neighbours != actual_factor_neighbours {
+            return Err(SparseMatrixError::BadAListFile(format!(
+                "Factor weights do not match factor weights distribution found. Expected: {:?}, got: {:?}",
+                expected_neighbours, actual_factor_neighbours
+            )));
+        }
+
+        if read_max_factor_nbrs != max_neightbours_weight {
+            return Err(SparseMatrixError::BadAListFile(format!(
+                "Unexpected largest number of factor neighbours. Expected: {}, got: {}",
+                max_neightbours_weight, read_max_factor_nbrs
+            )));
+        }
+
+        Ok(())
     }
 
     pub fn factor(&self, n: &usize) -> &[usize] {
@@ -146,6 +206,7 @@ impl SparseMatrix {
     }
 }
 
+#[instrument(skip(lines), err(level = "WARN"))]
 fn populate_neighbours<R>(
     lines: &mut Lines<BufReader<R>>,
     n: usize,
@@ -171,6 +232,7 @@ where
     }
 }
 
+#[instrument(skip(lines), err(level = "WARN"))]
 fn read_tuple<R>(lines: &mut Lines<BufReader<R>>) -> Result<(usize, usize), SparseMatrixError>
 where
     R: Read,
@@ -187,6 +249,7 @@ where
     Ok((usize::from_str(x[0])?, usize::from_str(x[1])?))
 }
 
+#[instrument(skip(lines), err(level = "WARN"))]
 fn read_vec<R>(lines: &mut Lines<BufReader<R>>) -> Result<Vec<usize>, SparseMatrixError>
 where
     R: Read,
@@ -228,9 +291,37 @@ mod tests {
         3 4 6\n\
         ";
 
+    const H_ALIST_SHORT: &str = "\
+        6 4\n\
+        2 3\n\
+        2 2 2 2 2 2\n\
+        3 3 3 3\n\
+        1 3\n\
+        1 2\n\
+        2 4\n\
+        1 4\n\
+        2 3\n\
+        3 4\n\
+        ";
+
     #[test]
     fn read_alist() {
         let m1 = SparseMatrix::from_alist_str(H_ALIST).unwrap();
+        let m2 = SparseMatrix::from_array(&H);
+
+        assert_eq!(
+            m1.iter_factors().collect::<Vec<_>>(),
+            m2.iter_factors().collect::<Vec<_>>()
+        );
+        assert_eq!(
+            m1.iter_variables().collect::<Vec<_>>(),
+            m2.iter_variables().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn read_alist_short() {
+        let m1 = SparseMatrix::from_alist_str_short(H_ALIST_SHORT).unwrap();
         let m2 = SparseMatrix::from_array(&H);
 
         assert_eq!(
