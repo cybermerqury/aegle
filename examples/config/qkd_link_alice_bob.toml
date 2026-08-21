@@ -1,6 +1,6 @@
 log_level = "INFO"
 [[links]]
-length     = 100
+length     = 10500
 error_rate = 0.1
 root_cert = "./certificates/root.pem"
 client_cert = "./certificates/module.pem"

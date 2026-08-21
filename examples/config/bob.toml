@@ -21,35 +21,36 @@ remote = "00000000-0000-0000-0000-0000000000ab"
 base_url = "http://localhost:8000"
 
 [[simcommsys.ldpc_codes]]
-id = "aegle-6-4"
+id = "peg-10000-080-bsc"
 min_ber = 0.0
-max_ber = 0.08
-block_length = 6
-
-[simcommsys.ldpc_codes.matrix]
-definition = [
-    [0, 1, 1, 0, 0, 0],
-    [1, 1, 0, 1, 0, 0],
-    [1, 0, 0, 0, 1, 0],
-    [0, 1, 0, 0, 0, 1],
-]
+max_ber = 0.025
+block_length = 10000
+matrix = { file = "./ldpc-codes/peg-10000-080-bsc.cfg" }
 
 [[simcommsys.ldpc_codes]]
-id = "aegle-15-10"
-min_ber = 0.08
-max_ber = 0.5
-block_length = 15
+id = "peg-10000-070-bsc"
+min_ber = 0.025
+max_ber = 0.0425
+block_length = 10000
+matrix = { file = "./ldpc-codes/peg-10000-070-bsc.cfg" }
 
-[simcommsys.ldpc_codes.matrix]
-definition = [
-    [1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    [1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1],
-    [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 0],
-    [0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 1],
-]
+[[simcommsys.ldpc_codes]]
+id = "peg-10000-060-bsc"
+min_ber = 0.0425
+max_ber = 0.065
+block_length = 10000
+matrix = { file = "./ldpc-codes/peg-10000-060-bsc.cfg" }
+
+[[simcommsys.ldpc_codes]]
+id = "peg-10000-050-bsc"
+min_ber = 0.065
+max_ber = 0.09
+block_length = 10000
+matrix = { file = "./ldpc-codes/peg-10000-050-bsc.cfg" }
+
+[[simcommsys.ldpc_codes]]
+id = "peg-10000-040-bsc"
+min_ber = 0.09
+max_ber = 1.0
+block_length = 10000
+matrix = { file = "./ldpc-codes/peg-10000-040-bsc.cfg" }
