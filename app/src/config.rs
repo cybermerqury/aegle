@@ -56,6 +56,8 @@ pub struct RotatingLog {
 pub struct ModuleConfig {
     pub module: Module,
     pub peers: Vec<PeerInfo>,
+    #[cfg(feature = "ec_simcommsys")]
+    pub simcommsys: ec_simcommsys::config::SimCommSysConfig,
 }
 
 impl ModuleConfig {

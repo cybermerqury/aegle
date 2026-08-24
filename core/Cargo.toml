@@ -4,9 +4,16 @@ version = "1.0.0"
 edition = "2021"
 license = "PolyForm-Noncommercial-1.0.0"
 
+[features]
+default = []
+ec_simcommsys = ["ureq"]
+reqwest = ["dep:reqwest"]
+ureq = ["dep:ureq"]
+
 [dependencies]
 bitvec = { workspace = true }
 rand = { workspace = true }
+reqwest = { workspace = true, optional = true }
 rustls = { workspace = true }
 rustls-pemfile = { workspace = true }
 serde = { workspace = true }
@@ -14,4 +21,8 @@ tokio = { workspace = true }
 tokio-util = { workspace = true }
 toml = { workspace = true }
 tracing = { workspace = true }
+ureq = { workspace = true, optional = true }
 uuid = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

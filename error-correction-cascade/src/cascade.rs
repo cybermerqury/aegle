@@ -3,11 +3,13 @@
 
 use bitvec::vec::BitVec;
 use rand::seq::SliceRandom;
+use std::convert::Infallible;
 use std::sync::{Arc, RwLock, Weak};
 
 use core::key_state_machine::{Key, Reconciled, Reconciling};
-use core::traits::{
-    FollowerRequests, FollowerResponse, PPError, PPStep, PostProcessingSetup, PostProcessingStep,
+use core::{
+    models::follower_comms::{FollowerRequests, FollowerResponse},
+    traits::{PPError, PPStep, PostProcessingSetup, PostProcessingStep},
 };
 
 type CascadeNode = Arc<RwLock<CascadeBlock>>;
@@ -196,8 +198,13 @@ impl PostProcessingSetup for SetupCascade {
     type Worker = Cascade;
     type InitialStage = Reconciling;
     type SetupArgs = f64;
+    type SetupErr = Infallible;
 
-    fn setup(self, key: Key<Self::InitialStage>, estimated_error: Self::SetupArgs) -> Self::Worker {
+    fn setup(
+        self,
+        key: Key<Self::InitialStage>,
+        estimated_error: Self::SetupArgs,
+    ) -> Result<Self::Worker, Self::SetupErr> {
         let working_key = Arc::new(RwLock::new(key.get_interior()));
         let mut all_indicies = Vec::with_capacity(self.num_iterations);
         let rng = &mut rand::thread_rng();
@@ -213,14 +220,15 @@ impl PostProcessingSetup for SetupCascade {
             block_size *= 2;
             iterations.push(x);
         }
-        Cascade {
+
+        Ok(Cascade {
             key,
             iterations,
             parity_blocks: None,
             iteration: 0,
             leaked_bits: 0,
             state: CascadeState::Forward(0, false),
-        }
+        })
     }
 }
 
@@ -453,7 +461,11 @@ mod tests {
             "Error before: {}",
             calc_error_rate(&key_a.get_interior(), &key_b.get_interior())
         );
-        let mut cascade = SetupCascade { num_iterations: 4 }.setup(key_b, 0.05);
+
+        let mut cascade = SetupCascade { num_iterations: 4 }
+            .setup(key_b, 0.05)
+            .unwrap();
+
         let result = loop {
             match cascade.step() {
                 Ok(PPStep::Result(())) => break Ok(()),

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 // SPDX-FileCopyrightText:  © 2024 - 2026 Merqury Cybersecurity Ltd <info@merqury.eu>
 
+use core::error::{Error, ErrorKind};
+
 use quinn::{RecvStream, SendStream};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
@@ -45,12 +47,30 @@ impl QuinnStream {
     pub async fn read_len(&mut self) -> MainResult<u32> {
         Ok(self.reader.read_u32().await?)
     }
+
     pub async fn read_exact<'a>(&mut self, buf: &'a mut [u8]) -> MainResult<&'a [u8]> {
         self.reader.read_exact(buf).await?;
         Ok(buf)
     }
+
+    pub async fn read<'a>(&mut self, buf: &'a mut [u8]) -> MainResult<&'a [u8]> {
+        match self.reader.read(buf).await? {
+            Some(count) => Ok(&buf[0..count]),
+            None => Err(Error::new(ErrorKind::Io, "quinn stream finished").into()),
+        }
+    }
+
     pub async fn write_all(&mut self, buf: &[u8]) -> MainResult<()> {
-        self.writer.write(buf).await?;
+        let count = self.writer.write(buf).await?;
+
+        if count != buf.len() {
+            return Err(Error::new(
+                ErrorKind::Io,
+                format!("Only sent {count} bytes of {}", buf.len()),
+            )
+            .into());
+        }
+
         self.writer.flush().await?;
         Ok(())
     }

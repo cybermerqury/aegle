@@ -1,13 +1,7 @@
-// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
-// SPDX-FileCopyrightText:  © 2024 - 2026 Merqury Cybersecurity Ltd <info@merqury.eu>
-
-use std::error::Error;
-use std::fmt::Display;
-use std::num;
-use std::str::FromStr;
+use std::{error::Error, fmt::Display, str::FromStr};
 
 #[derive(Debug)]
-pub enum ParityMatrixError {
+pub enum SparseMatrixError {
     BadAListFile(String),
     ConversionError(<usize as FromStr>::Err),
     IOError(std::io::Error),
@@ -16,7 +10,7 @@ pub enum ParityMatrixError {
     FileTooLong,
 }
 
-impl Display for ParityMatrixError {
+impl Display for SparseMatrixError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::BadAListFile(msg) => writeln!(f, "Alist file is malformed: {}", msg),
@@ -29,16 +23,16 @@ impl Display for ParityMatrixError {
     }
 }
 
-impl From<num::ParseIntError> for ParityMatrixError {
-    fn from(value: num::ParseIntError) -> Self {
-        ParityMatrixError::ConversionError(value)
+impl From<std::num::ParseIntError> for SparseMatrixError {
+    fn from(value: std::num::ParseIntError) -> Self {
+        SparseMatrixError::ConversionError(value)
     }
 }
 
-impl From<std::io::Error> for ParityMatrixError {
+impl From<std::io::Error> for SparseMatrixError {
     fn from(value: std::io::Error) -> Self {
-        ParityMatrixError::IOError(value)
+        SparseMatrixError::IOError(value)
     }
 }
 
-impl Error for ParityMatrixError {}
+impl Error for SparseMatrixError {}

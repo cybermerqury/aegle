@@ -7,6 +7,3 @@ license = "PolyForm-Noncommercial-1.0.0"
 [dependencies]
 bitvec = { workspace = true }
 core = { workspace = true }
-
-[dev-dependencies]
-tempfile = { workspace = true }

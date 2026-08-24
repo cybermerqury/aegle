@@ -3,7 +3,7 @@
 
 use std::f64;
 
-use bitvec::vec::BitVec;
+use bitvec::{slice::BitSlice, vec::BitVec};
 use serde::{Deserialize, Serialize};
 
 use crate::models::{DeviceId, KeyId, Toeplitz};
@@ -157,6 +157,19 @@ impl Key<Reconciling> {
         }
     }
 
+    /// Chunks the key into codeword-long vectors.
+    pub fn chunks(&self, codeword_len: u64) -> (Vec<&BitSlice>, Option<&BitSlice>) {
+        let codeword_iter = self.get_interior_ref().chunks_exact(codeword_len as usize);
+
+        let remainder = codeword_iter.remainder();
+        let remainder = match remainder.is_empty() {
+            true => None,
+            false => Some(remainder),
+        };
+
+        (codeword_iter.collect(), remainder)
+    }
+
     pub fn reveal(&mut self, idx: usize) -> Option<bool> {
         let value = self.data.0.get(idx);
         match value {
@@ -175,8 +188,8 @@ impl Key<Reconciling> {
     }
 }
 impl Key<Reconciled> {
-    pub fn privacy_amplification(self, t: &Toeplitz) -> Option<Key<Secret>> {
-        Some(Key {
+    pub fn privacy_amplification(self, t: &Toeplitz) -> crate::error::Result<Key<Secret>> {
+        Ok(Key {
             data: t.hash_data(self.data.0)?.into(),
             key_id: self.key_id,
             device_id: self.device_id,
@@ -212,9 +225,11 @@ mod tests {
         recon.reveal(5);
 
         let test_key_reconciled: BitVec = [true, true, true, true, false].iter().collect();
+
         recon
             .reconcile(KeyData(test_key_reconciled), 2)
-            .privacy_amplification(&Toeplitz::new(5, 5 - 2));
+            .privacy_amplification(&Toeplitz::new(5, 5 - 2))
+            .unwrap();
     }
 
     #[test]

@@ -2,30 +2,45 @@
 // SPDX-FileCopyrightText:  © 2024 - 2026 Merqury Cybersecurity Ltd <info@merqury.eu>
 
 use bitvec::vec::BitVec;
-use core::spawn_subsystem;
-use core::traits::{FollowerRequests, FollowerResponse, PAReply};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io::Write;
+use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::mpsc::{Receiver, Sender};
+use tokio::sync::{mpsc, oneshot};
+use tracing::{debug, error, info, instrument, warn, Instrument};
 
-use core::key_state_machine::{Key, Sifted};
-use core::sync::tasks::{Monitor, TaskManager};
-use tracing::{error, info, instrument, warn, Instrument};
+#[cfg(feature = "ec_simcommsys")]
+use ec_simcommsys::{
+    client::SCSApi,
+    config::{CodeProperties, LdpcCodes},
+};
+
+use core::{
+    key_state_machine::{Key, Reconciling, Secret, Sifted},
+    models::{
+        follower_comms::{FollowerRequests, FollowerResponse, PAReply},
+        parity_matrix::ParityMatrix,
+    },
+    spawn_subsystem,
+    sync::tasks::{Monitor, TaskManager},
+};
 
 use crate::communication::key_processing::{RegisterKey, RegisterReply};
 use crate::communication::parse::{read_message, send_message};
 use crate::communication::quic::QuinnStream;
-use crate::errors::SubsystemResult;
-use crate::models::{FullId, FullKeyId, LocalDeviceId, PeerId};
+#[cfg(feature = "ec_simcommsys")]
+use crate::errors::SubsystemError;
+use crate::errors::{MainResult, SubsystemResult};
+use crate::models::{DeviceId, FullId, FullKeyId, KeyId, LocalDeviceId, PeerId};
 
 type NewKeyEntry = (
-    Option<tokio::sync::oneshot::Sender<Key<Sifted>>>,
-    Option<tokio::sync::oneshot::Receiver<Key<Sifted>>>,
+    Option<oneshot::Sender<Key<Sifted>>>,
+    Option<oneshot::Receiver<Key<Sifted>>>,
 );
 
 fn create_entry() -> NewKeyEntry {
-    let (tx, rx) = tokio::sync::oneshot::channel();
+    let (tx, rx) = oneshot::channel();
     (Some(tx), Some(rx))
 }
 
@@ -33,6 +48,10 @@ struct Follower {
     peer_id: PeerId,
     device_id: LocalDeviceId,
     connection: quinn::Connection,
+    #[cfg(feature = "ec_simcommsys")]
+    client: Arc<SCSApi>,
+    #[cfg(feature = "ec_simcommsys")]
+    ldpc_codes: LdpcCodes,
 }
 
 impl Follower {
@@ -53,9 +72,11 @@ impl Follower {
 pub async fn start_follower(
     monitor: Monitor,
     connection: quinn::Connection,
+    #[cfg(feature = "ec_simcommsys")] client: Arc<SCSApi>,
+    #[cfg(feature = "ec_simcommsys")] ldpc_codes: LdpcCodes,
     peer_id: PeerId,
     device_id: LocalDeviceId,
-    new_key: Receiver<Key<Sifted>>,
+    new_key: mpsc::Receiver<Key<Sifted>>,
 ) {
     info!("Starting follower");
     let mut tm = TaskManager::new();
@@ -63,6 +84,10 @@ pub async fn start_follower(
         peer_id,
         device_id,
         connection: connection.clone(),
+        #[cfg(feature = "ec_simcommsys")]
+        client,
+        #[cfg(feature = "ec_simcommsys")]
+        ldpc_codes,
     };
     let (key_sender, key_receiver) = tokio::sync::mpsc::channel(1024);
     async fn wait_for_cancel(inner_monitor: Monitor, outer_monitor: Monitor) -> SubsystemResult {
@@ -85,7 +110,7 @@ pub async fn start_follower(
 async fn listen_for_new_stream(
     monitor: Monitor,
     connection: quinn::Connection,
-    new_stream: Sender<(RegisterKey, QuinnStream)>,
+    new_stream: mpsc::Sender<(RegisterKey, QuinnStream)>,
 ) -> SubsystemResult {
     loop {
         tokio::select! {
@@ -123,8 +148,8 @@ async fn listen_for_new_stream(
 async fn handle_new_key(
     role: Follower,
     monitor: Monitor,
-    mut new_key: Receiver<Key<Sifted>>,
-    mut request_key: Receiver<(RegisterKey, QuinnStream)>,
+    mut new_key: mpsc::Receiver<Key<Sifted>>,
+    mut request_key: mpsc::Receiver<(RegisterKey, QuinnStream)>,
 ) -> SubsystemResult {
     let mut keys_working = HashMap::new();
     let connection = role.connection();
@@ -156,14 +181,17 @@ async fn handle_new_key(
                         let full_id = (register_key.key_id(), role.device_id().into());
                         let (_, rx) = keys_working.entry(full_id)
                                         .or_insert_with(create_entry);
+
+                        let processor = cfg_select! {
+                            feature = "ec_simcommsys" => KeyProcessor::new_scs(stream, role.client.clone(), role.ldpc_codes.clone(), full_id, register_key.len()),
+                            _ => KeyProcessor::new(stream, full_id, register_key.len())
+                        };
+
                         match rx.take() {
-                            Some(receiver) => { monitor.run(
-                                    process_key(stream,
-                                                full_id,
-                                                register_key.len(),
-                                                receiver,
-                                                ).in_current_span()
-                                    );
+                            Some(receiver) => {
+                                let future = processor.process(receiver).in_current_span();
+
+                                monitor.run(future);
                             },
                             None => warn!("Key already processed!"),
                         }
@@ -177,131 +205,323 @@ async fn handle_new_key(
     Ok(())
 }
 
-#[instrument(skip_all, fields(%key_id=full_id.0))]
-async fn process_key(
-    mut stream: QuinnStream,
-    full_id: FullId,
+struct KeyProcessor {
+    stream: QuinnStream,
+    key_id: KeyId,
+    device_id: DeviceId,
     expected_len: usize,
-    get_key: tokio::sync::oneshot::Receiver<Key<Sifted>>,
-) {
-    let key = match tokio::time::timeout(Duration::from_secs(30), get_key).await {
-        Err(_) => {
-            warn!("Could not find key");
-            let _ = send_message(&mut stream, &RegisterReply::not_found(full_id.0)).await;
+    #[cfg(feature = "ec_simcommsys")]
+    scs_client: Arc<SCSApi>,
+    #[cfg(feature = "ec_simcommsys")]
+    ldpc_codes: LdpcCodes,
+}
+
+impl KeyProcessor {
+    const WAIT_FOR_KEY_TIMEOUT: Duration = Duration::from_secs(30);
+
+    #[cfg(not(feature = "ec_simcommsys"))]
+    fn new(stream: QuinnStream, full_id: FullId, expected_len: usize) -> Self {
+        Self {
+            stream,
+            key_id: full_id.0,
+            device_id: full_id.1,
+            expected_len,
+        }
+    }
+
+    #[cfg(feature = "ec_simcommsys")]
+    fn new_scs(
+        stream: QuinnStream,
+        scs_client: Arc<SCSApi>,
+        ldpc_codes: LdpcCodes,
+        full_id: FullId,
+        expected_len: usize,
+    ) -> Self {
+        Self {
+            stream,
+            scs_client,
+            ldpc_codes,
+            key_id: full_id.0,
+            device_id: full_id.1,
+            expected_len,
+        }
+    }
+
+    async fn get_key(&mut self, get_key: oneshot::Receiver<Key<Sifted>>) -> Option<Key<Sifted>> {
+        let found_key = match tokio::time::timeout(Self::WAIT_FOR_KEY_TIMEOUT, get_key).await {
+            Err(_) => {
+                warn!("Could not find key");
+                None
+            }
+            Ok(Err(e)) => {
+                warn!("Error occured while trying to get key: {}", e);
+                None
+            }
+            Ok(Ok(key)) => Some(key),
+        };
+
+        if found_key.is_none() {
+            let reply = RegisterReply::not_found(self.key_id);
+            if let Err(e) = self.send_msg(&reply).await {
+                warn!("Failed to send 'not_found' reply. Error: {e:?}");
+            }
+        }
+
+        found_key
+    }
+
+    #[instrument(name = "process_key", skip_all, fields(%key_id=self.key_id))]
+    pub async fn process(mut self, get_key: oneshot::Receiver<Key<Sifted>>) {
+        let Some(key): Option<Key<Sifted>> = self.get_key(get_key).await else {
+            return;
+        };
+
+        if key.full_id() != (self.key_id, self.device_id) {
+            let _ = self.send_msg(&RegisterReply::found(self.key_id)).await;
             return;
         }
-        Ok(Err(e)) => {
-            warn!("Error occured while trying to get key: {}", e);
-            let _ = send_message(&mut stream, &RegisterReply::not_found(full_id.0)).await;
+
+        if key.length() != self.expected_len {
+            warn!(
+                "Length mismatch. Got {}, expected {}",
+                key.length(),
+                self.expected_len
+            );
+            let _ = self
+                .send_msg(&RegisterReply::LengthMismatch(self.key_id))
+                .await;
             return;
         }
-        Ok(Ok(key)) => key,
-    };
-    if key.full_id() != full_id {
-        let _ = send_message(&mut stream, &RegisterReply::found(full_id.0)).await;
-        return;
-    }
-    if key.length() != expected_len {
-        warn!(
-            "Length mismatch. Got {}, expected {}",
-            key.length(),
-            expected_len
-        );
-        let _ = send_message(&mut stream, &RegisterReply::LengthMismatch(full_id.0)).await;
-        return;
-    }
-    info!("Found key");
-    let _ = send_message(&mut stream, &RegisterReply::KeyFound(full_id.0)).await;
-    let buff = &mut vec![0; 1024 * 1024];
-    let mut key = key.verify().start_reconciliation();
-    let mut leaked_bits = 0;
-    let secret_key = loop {
-        let request: FollowerRequests = match read_message(&mut stream, buff).await {
-            Ok(request) => request,
+
+        info!("Found key");
+
+        let _ = self.send_msg(&RegisterReply::KeyFound(self.key_id)).await;
+
+        let key = key.verify().start_reconciliation();
+
+        let secret_key = match self.construct_secret_key(key).await {
+            Ok(Some(secret_key)) => {
+                let response = FollowerResponse::PrivacyAmplificationConfirmed(PAReply::Confirmed);
+                if let Err(e) = self.send_msg(&response).await {
+                    warn!("Unable to send privacy amplication confirmation. Error: {e:?}");
+                    return;
+                }
+                secret_key
+            }
+            Ok(None) => {
+                warn!("Cannot perform privacy amplification.");
+
+                let response = FollowerResponse::PrivacyAmplificationConfirmed(PAReply::Error);
+                if let Err(e) = self.send_msg(&response).await {
+                    warn!("Unable to send PA error to peer: {:?}", e);
+                }
+                return;
+            }
             Err(e) => {
-                warn!("Error processing request: {:?}", e);
+                warn!("Failed to construct secret key. Error: {e:?}");
                 return;
             }
         };
-        match request {
-            FollowerRequests::Reveal(idx) => {
-                let mut revealed = BitVec::new();
-                for i in idx {
-                    revealed.push(key.reveal(i).unwrap());
-                }
-                let response = FollowerResponse::Reveal(revealed);
-                if let Err(e) = send_message(&mut stream, &response).await {
-                    warn!("Unable to send revealed bits to peer: {:?}", e);
-                    return;
-                };
-                key.remove_revealed();
-            }
-            FollowerRequests::Syndrome(vec_idx) => {
-                let mut syndrome = BitVec::new();
-                for idx in vec_idx {
-                    leaked_bits += 1;
-                    syndrome.push(calc_syndrome(&idx, key.get_interior_ref()));
-                }
-                if let Err(e) =
-                    send_message(&mut stream, &FollowerResponse::Syndrome(syndrome)).await
-                {
-                    warn!("Error sending syndrome to peer: {:?}", e);
-                    return;
-                };
-            }
-            FollowerRequests::PrivacyAmplification(toeplitz) => {
-                let data = key.get_interior();
-                let reconciled = key.reconcile(data.into(), leaked_bits);
-                break reconciled.privacy_amplification(&toeplitz);
-            }
-        }
-    };
-    let Some(secret_key) = secret_key else {
-        warn!("Cannot perform privacy amplification");
-        if let Err(e) = send_message(
-            &mut stream,
-            &FollowerResponse::PrivacyAmplificationConfirmed(PAReply::Error),
-        )
-        .await
-        {
-            warn!("Unable to send PA error to peer: {:?}", e);
-        }
-        return;
-    };
-    if let Err(e) = send_message(
-        &mut stream,
-        &FollowerResponse::PrivacyAmplificationConfirmed(PAReply::Confirmed),
-    )
-    .await
-    {
-        warn!("Unable to confirm privacy amplification: {:?}", e)
-    };
 
-    let mut file = std::fs::OpenOptions::new()
-        .append(true)
-        .create(true)
-        .open(format!("{}.csv", secret_key.device_id()))
-        .unwrap();
-    let _ = file.write_all(
-        format!(
-            "{},{}\n",
-            secret_key.key_id(),
-            secret_key
-                .get_interior_ref()
-                .iter()
-                .by_vals()
-                .map(|b| if b { "1" } else { "0" })
-                .collect::<String>()
-        )
-        .as_bytes(),
-    );
-    info!("Post processing finished");
+        debug!("Saving secret key.");
+
+        let mut file = std::fs::OpenOptions::new()
+            .append(true)
+            .create(true)
+            .open(format!("{}.csv", secret_key.device_id()))
+            .unwrap();
+        let _ = file.write_all(
+            format!(
+                "{},{}\n",
+                secret_key.key_id(),
+                secret_key
+                    .get_interior_ref()
+                    .iter()
+                    .by_vals()
+                    .map(|b| if b { "1" } else { "0" })
+                    .collect::<String>()
+            )
+            .as_bytes(),
+        );
+        info!("Post processing finished");
+    }
+
+    #[instrument(skip_all)]
+    async fn construct_secret_key(
+        &mut self,
+        mut key: Key<Reconciling>,
+    ) -> MainResult<Option<Key<Secret>>> {
+        let buff = &mut vec![0; 1024 * 1024];
+        let mut leaked_bits = 0;
+        let mut final_key_length: usize = key.length();
+
+        #[cfg(feature = "ec_simcommsys")]
+        let mut ldpc_code: Option<Arc<CodeProperties>> = None;
+
+        loop {
+            let request: FollowerRequests = self
+                .recv_msg(buff)
+                .await
+                .inspect_err(|e| warn!("Error processing request: {e:?}"))?;
+
+            #[cfg(debug_assertions)]
+            debug!("Received leader request {request:?}");
+
+            match request {
+                FollowerRequests::Reveal(idx) => {
+                    let revealed = idx
+                        .into_iter()
+                        .map(|i| key.reveal(i).unwrap())
+                        .collect::<BitVec>();
+
+                    let response = FollowerResponse::Reveal(revealed);
+                    self.send_msg(&response)
+                        .await
+                        .inspect_err(|e| warn!("Unable to send revealed bits to peer: {e:?}"))?;
+                    key.remove_revealed();
+                }
+                FollowerRequests::Syndrome(vec_idx) => {
+                    leaked_bits += vec_idx.len();
+                    let syndrome = vec_idx
+                        .into_iter()
+                        .map(|idx| calc_syndrome(&idx, key.get_interior_ref()))
+                        .collect::<BitVec>();
+
+                    final_key_length = key.get_interior_ref().len();
+
+                    self.send_msg(&FollowerResponse::Syndrome(syndrome))
+                        .await
+                        .inspect_err(|e| warn!("Error sending syndrome to peer: {e:?}"))?;
+                }
+                FollowerRequests::PrivacyAmplification(toeplitz) => {
+                    info!("Reconciling key with {leaked_bits} leaked bits.");
+
+                    let data = key.get_interior_ref()[0..final_key_length].to_bitvec();
+
+                    let reconciled = key.reconcile(data.into(), leaked_bits);
+
+                    return match reconciled.privacy_amplification(&toeplitz) {
+                        Ok(final_key) => Ok(Some(final_key)),
+                        Err(e) => {
+                            warn!("Privacy amplification failed. Error: {e}");
+                            Ok(None)
+                        }
+                    };
+                }
+                #[cfg(feature = "ec_simcommsys")]
+                FollowerRequests::SCSRegisterCode(code_id) => {
+                    use ec_simcommsys::config::MatrixDefinition;
+
+                    info!("Registering LDPC code '{code_id}' with SimCommSys.");
+
+                    // Get the LDPC code from the config. If not present, respond as such to the leader.
+                    let code = self
+                        .ldpc_codes
+                        .iter()
+                        .find(|c| c.id == code_id)
+                        .ok_or_else(|| {
+                            SubsystemError::new(
+                                "Leader requested code '{code_id}', but not found in config.",
+                            )
+                        })?;
+
+                    let matrix = match &code.matrix {
+                        MatrixDefinition::Array(arr) => ParityMatrix::from_array(&arr),
+                        MatrixDefinition::AListFile(file) => {
+                            ParityMatrix::from_alist_file_short(&file)?
+                        }
+                    };
+
+                    ldpc_code = Some(code.clone());
+
+                    let is_success = self
+                        .scs_client
+                        .register(&code_id, &matrix)
+                        .inspect_err(|e| warn!("Failed to register code. Error: {e}"))
+                        .is_ok();
+
+                    let response = FollowerResponse::SCSRegisterCode(is_success);
+
+                    self.send_msg(&response).await.inspect_err(|e| {
+                        warn!("Unable to send registration result. Error: {e:?}")
+                    })?;
+                }
+                #[cfg(feature = "ec_simcommsys")]
+                FollowerRequests::SCSSyndrome => {
+                    let code = &ldpc_code.as_ref().ok_or_else(|| {
+                        SubsystemError::new(
+                            "LDPC code not yet selected. Follower didn't yet register code",
+                        )
+                    })?;
+
+                    let (codewords, remainder) = key.chunks(code.block_length);
+
+                    let remainder_bits = match remainder {
+                        Some(remainder) => {
+                            warn!(
+                                "Key does not fit cleanly into block length. Block length: {}, key size: {}, remaining bits: {}",
+                                code.block_length,
+                                key.get_interior_ref().len(),
+                                remainder.len()
+                            );
+                            remainder.len()
+                        }
+                        None => {
+                            debug!("Key divisible into block length.");
+                            0
+                        }
+                    };
+
+                    final_key_length = key.get_interior_ref().len() - remainder_bits;
+
+                    debug!(
+                        "Key of {} bits chunked into {}-bit words. Remainder: {} bits",
+                        code.block_length,
+                        key.get_interior_ref().len(),
+                        remainder_bits
+                    );
+
+                    let mut syndromes = Vec::with_capacity(codewords.len());
+
+                    for codeword in &codewords {
+                        let syndrome = self
+                            .scs_client
+                            .calculate_syndrome(&code.id, &codeword)
+                            .inspect_err(|e| warn!("Syndrome calculation failed. Error: {e}"))?;
+
+                        debug!("Syndrome for codeword {codeword}: {syndrome}");
+
+                        syndromes.push(syndrome)
+                    }
+
+                    leaked_bits +=
+                        syndromes.iter().fold(0, |acc, s| acc + s.len()) - remainder_bits;
+
+                    let response = FollowerResponse::SCSSyndrome(Some(syndromes));
+
+                    self.send_msg(&response).await.inspect_err(|e| {
+                        warn!("Unable to send syndrome calculation result. Error: {e:?}")
+                    })?;
+                }
+            }
+        }
+    }
+
+    async fn send_msg<T>(&mut self, msg: &T) -> MainResult<()>
+    where
+        T: Serialize,
+    {
+        send_message(&mut self.stream, msg).await
+    }
+
+    async fn recv_msg<'a, T>(&mut self, buf: &'a mut [u8]) -> MainResult<T>
+    where
+        T: Deserialize<'a>,
+    {
+        read_message(&mut self.stream, buf).await
+    }
 }
 
 fn calc_syndrome(idx: &[usize], key: &BitVec) -> bool {
-    let mut s = false;
-    for i in idx {
-        s ^= key[*i]
-    }
-    s
+    idx.into_iter().fold(false, |acc, i| acc ^ key[*i])
 }

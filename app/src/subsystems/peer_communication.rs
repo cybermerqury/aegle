@@ -4,8 +4,13 @@
 use std::fmt::Debug;
 use std::net::SocketAddr;
 use std::str::FromStr;
+use std::sync::Arc;
 use std::time::Duration;
 
+#[cfg(feature = "ec_simcommsys")]
+use ec_simcommsys::client::SCSApi;
+#[cfg(feature = "ec_simcommsys")]
+use ec_simcommsys::config::LdpcCodes;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tracing::{error, info, instrument, warn};
 
@@ -62,6 +67,8 @@ async fn launch_peer_communication(
     side: Side,
     connection_update: Sender<PeerUpdate>,
     request_qkd: Sender<RequestQkdKeys>,
+    #[cfg(feature = "ec_simcommsys")] scs_client: Arc<SCSApi>,
+    #[cfg(feature = "ec_simcommsys")] ldpc_codes: LdpcCodes,
 ) -> MainResult<()> {
     info!(
         "Launching peer communication as {:?} with peer {}",
@@ -90,12 +97,20 @@ async fn launch_peer_communication(
                 peer_id,
                 device_id,
                 new_keys,
+                #[cfg(feature = "ec_simcommsys")]
+                scs_client,
+                #[cfg(feature = "ec_simcommsys")]
+                ldpc_codes,
             ));
         }
         Role::Follower => {
             monitor.run(role::follower::start_follower(
                 monitor.clone(),
                 connection.clone(),
+                #[cfg(feature = "ec_simcommsys")]
+                scs_client,
+                #[cfg(feature = "ec_simcommsys")]
+                ldpc_codes,
                 peer_id,
                 device_id,
                 new_keys,
@@ -268,7 +283,7 @@ pub async fn peer_management_subsystem(
                             info!("Sending Acceptance");
                             send_message(&mut stream, &ConnectionStatus::Accepted).await?;
                         };
-                        monitor.run(launch_peer_communication(monitor.clone(), peer_id, device_id, stream, side, send_updates.clone(), request_qkd.clone()));
+                        monitor.run(launch_peer_communication(monitor.clone(), peer_id, device_id, stream, side, send_updates.clone(), request_qkd.clone(), #[cfg(feature = "ec_simcommsys")] module_args.scs_client.clone(), #[cfg(feature = "ec_simcommsys")] module_args.ldpc_codes.clone()));
                     },
                     Ok(Some(StreamAction::RejectStream(mut stream, reason))) => {
                         info!("Rejecting stream: {:?}", reason);

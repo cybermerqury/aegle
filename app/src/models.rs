@@ -9,9 +9,13 @@ mod peer;
 
 use core::generate_uuid_newtype;
 use core::key_state_machine::Key;
+#[cfg(feature = "ec_simcommsys")]
+use ec_simcommsys::{client::SCSApi, config::LdpcCodes};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::Display;
+#[cfg(feature = "ec_simcommsys")]
+use std::sync::Arc;
 use uuid::Uuid;
 
 pub use peer::{MutPeerState, PeerInfo, PeerStates};
@@ -21,6 +25,10 @@ pub type Peers = HashMap<(PeerId, LocalDeviceId), MutPeerState>;
 pub struct PeerManagementArgs {
     pub uuid: OwnID,
     pub client_config: quinn::ClientConfig,
+    #[cfg(feature = "ec_simcommsys")]
+    pub scs_client: Arc<SCSApi>,
+    #[cfg(feature = "ec_simcommsys")]
+    pub ldpc_codes: LdpcCodes,
 }
 
 generate_uuid_newtype!(DeviceId);
