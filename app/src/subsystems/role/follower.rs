@@ -16,7 +16,7 @@ use ec_simcommsys::{
     config::{CodeProperties, LdpcCodes},
 };
 
-use core::{
+use ppaas_core::{
     key_state_machine::{Key, Reconciling, Secret, Sifted},
     models::{
         follower_comms::{FollowerRequests, FollowerResponse, PAReply},

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 // SPDX-FileCopyrightText:  © 2024 - 2026 Merqury Cybersecurity Ltd <info@merqury.eu>
 
-use core::{
+use ppaas_core::{
     key_state_machine::{Key, Reconciled, Reconciling},
     models::follower_comms::{FollowerRequests, FollowerResponse},
     traits::{PPError, PPStep, PostProcessingStep},

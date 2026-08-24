@@ -25,7 +25,7 @@ pub enum Roles {
 #[tokio::main]
 async fn main() -> MainResult<()> {
     let args = CliArgs::parse();
-    let config: ModuleConfig = core::fs::config::load_toml_config(args.config_file)?;
+    let config: ModuleConfig = ppaas_core::fs::config::load_toml_config(args.config_file)?;
 
     setup_logging_infra(&config);
 

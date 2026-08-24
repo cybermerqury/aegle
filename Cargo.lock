@@ -15,10 +15,10 @@ dependencies = [
  "bincode",
  "bitvec",
  "clap",
- "core",
  "ec_cascade",
  "ec_simcommsys",
  "p12-keystore",
+ "ppaas_core",
  "quinn",
  "quinn-proto",
  "rand 0.8.5",
@@ -225,8 +225,8 @@ version = "1.0.0"
 dependencies = [
  "bitvec",
  "clap",
- "core",
  "ec_cascade",
+ "ppaas_core",
  "rand 0.8.5",
  "rayon",
 ]
@@ -482,25 +482,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "core"
-version = "1.0.0"
-dependencies = [
- "bitvec",
- "rand 0.8.5",
- "reqwest",
- "rustls",
- "rustls-pemfile",
- "serde",
- "tempfile",
- "tokio",
- "tokio-util",
- "toml",
- "tracing",
- "ureq",
- "uuid",
-]
-
-[[package]]
 name = "core-foundation"
 version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -715,7 +696,7 @@ name = "ec_binary_ldpc"
 version = "1.0.0"
 dependencies = [
  "bitvec",
- "core",
+ "ppaas_core",
 ]
 
 [[package]]
@@ -723,7 +704,7 @@ name = "ec_cascade"
 version = "1.0.0"
 dependencies = [
  "bitvec",
- "core",
+ "ppaas_core",
  "rand 0.8.5",
 ]
 
@@ -741,7 +722,7 @@ name = "ec_simcommsys"
 version = "1.0.0"
 dependencies = [
  "bitvec",
- "core",
+ "ppaas_core",
  "reqwest",
  "serde",
  "serde_json",
@@ -764,8 +745,8 @@ dependencies = [
  "bincode",
  "bitvec",
  "clap",
- "core",
  "duration-str",
+ "ppaas_core",
  "quinn",
  "rand 0.8.5",
  "rustls",
@@ -1807,6 +1788,25 @@ name = "powerfmt"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "439ee305def115ba05938db6eb1644ff94165c5ab5e9420d1c1bcedbba909391"
+
+[[package]]
+name = "ppaas_core"
+version = "1.0.0"
+dependencies = [
+ "bitvec",
+ "rand 0.8.5",
+ "reqwest",
+ "rustls",
+ "rustls-pemfile",
+ "serde",
+ "tempfile",
+ "tokio",
+ "tokio-util",
+ "toml",
+ "tracing",
+ "ureq",
+ "uuid",
+]
 
 [[package]]
 name = "ppv-lite86"

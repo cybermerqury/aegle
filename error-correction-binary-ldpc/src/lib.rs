@@ -6,7 +6,7 @@ pub mod belief_propagation;
 use bitvec::vec::BitVec;
 use std::{convert::Infallible, path::Path};
 
-use core::{
+use ppaas_core::{
     key_state_machine::{Key, Reconciled, Reconciling},
     models::{
         follower_comms::{FollowerRequests, FollowerResponse},
@@ -127,7 +127,7 @@ impl PostProcessingSetup for SetupBinaryLDPC {
 mod tests {
     use bitvec::prelude::*;
 
-    use core::models::parity_matrix::ParityMatrix;
+    use ppaas_core::models::parity_matrix::ParityMatrix;
 
     use crate::belief_propagation;
 

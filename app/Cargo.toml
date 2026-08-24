@@ -7,13 +7,13 @@ license = "PolyForm-Noncommercial-1.0.0"
 [features]
 default = ["ec_cascade"]
 ec_cascade = ["dep:ec_cascade"]
-ec_simcommsys = ["dep:ec_simcommsys", "core/ec_simcommsys"]
+ec_simcommsys = ["dep:ec_simcommsys", "ppaas_core/ec_simcommsys"]
 
 [dependencies]
 bincode = { workspace = true }
 bitvec = { workspace = true }
 clap = { workspace = true }
-core = { path = "../core/" }
+ppaas_core = { workspace = true }
 ec_cascade = { path = "../error-correction-cascade", package = "ec_cascade", optional = true }
 ec_simcommsys = { path = "../error-correction-simcommsys", package = "ec_simcommsys", optional = true }
 p12-keystore = { workspace = true }

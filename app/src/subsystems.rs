@@ -7,10 +7,10 @@ mod role;
 
 use std::collections::HashMap;
 
-use core::sync::tasks::Monitor;
-use core::{spawn_subsystem, sync::tasks::TaskManager};
 #[cfg(feature = "ec_simcommsys")]
 use ec_simcommsys::client::SCSApi;
+use ppaas_core::sync::tasks::Monitor;
+use ppaas_core::{spawn_subsystem, sync::tasks::TaskManager};
 #[cfg(feature = "ec_simcommsys")]
 use std::sync::Arc;
 use tokio::sync::mpsc::Receiver;

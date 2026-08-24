@@ -6,7 +6,7 @@ use std::sync::Arc;
 use tokio::sync::mpsc::Receiver;
 use tracing::{debug, error, info, instrument, warn, Instrument};
 
-use core::{
+use ppaas_core::{
     key_state_machine::{Key, Reconciling, Secret, Sifted},
     models::follower_comms::FollowerRequests,
     sync::tasks::Monitor,
@@ -128,7 +128,7 @@ async fn handle_new_key(
 fn create_simcommsys_stage(
     client: Arc<SCSApi>,
     ldpc_codes: LdpcCodes,
-) -> core::error::Result<SetupSimCommSys> {
+) -> ppaas_core::error::Result<SetupSimCommSys> {
     SetupSimCommSys::new(ldpc_codes, client)
 }
 
@@ -136,7 +136,7 @@ fn create_pipeline(
     key: Key<Reconciling>,
     #[cfg(feature = "ec_simcommsys")] client: Arc<SCSApi>,
     #[cfg(feature = "ec_simcommsys")] ldpc_codes: LdpcCodes,
-) -> core::error::Result<
+) -> ppaas_core::error::Result<
     Box<impl PostProcessingStep<InitialStage = Reconciling, FinalStage = Secret, Result = ()>>,
 > {
     let pipeline = BEREstimation::new(key, 0.05, 0.95).pipe(SetupBerLimit::new(0.11));

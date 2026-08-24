@@ -20,7 +20,7 @@ use crate::errors::{ErrorMessage, MainResult, SubsystemError, SubsystemResult};
 use crate::models::update_qkd::RequestQkdKeys;
 use crate::models::{LocalDeviceId, OwnID, PeerId, PeerManagementArgs, PeerStates, Peers};
 
-use core::sync::tasks::Monitor;
+use ppaas_core::sync::tasks::Monitor;
 
 use super::{role, RemoteToLocal};
 

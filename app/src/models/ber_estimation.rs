@@ -6,11 +6,11 @@ use std::{convert::Infallible, f64};
 
 use statrs::distribution::{ContinuousCDF, Normal};
 
-use core::key_state_machine::{Key, Reconciling};
+use ppaas_core::key_state_machine::{Key, Reconciling};
 use tracing::info;
 
 use crate::errors::MainResult;
-use core::{
+use ppaas_core::{
     models::follower_comms::{FollowerRequests, FollowerResponse},
     traits::{PPError, PPStep, PostProcessingSetup, PostProcessingStep},
 };
@@ -192,8 +192,8 @@ mod tests {
     use bitvec::vec::BitVec;
     use rand::Rng;
 
-    use core::key_state_machine::{Key, Reconciling};
-    use core::models::{DeviceId, KeyId};
+    use ppaas_core::key_state_machine::{Key, Reconciling};
+    use ppaas_core::models::{DeviceId, KeyId};
 
     use super::*;
 

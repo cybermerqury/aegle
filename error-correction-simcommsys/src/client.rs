@@ -9,7 +9,7 @@ use serde_json::json;
 use tracing::{debug, instrument, warn};
 use ureq::Agent;
 
-use core::{
+use ppaas_core::{
     error::{Error, ErrorKind, Result},
     models::parity_matrix::ParityMatrix,
 };
@@ -262,7 +262,7 @@ pub fn parity_matrix_to_codec(matrix: &ParityMatrix) -> Result<String> {
 
 #[cfg(test)]
 mod tests {
-    use core::models::parity_matrix::ParityMatrix;
+    use ppaas_core::models::parity_matrix::ParityMatrix;
 
     /// Sample parity matrix of the dollowing shape:
     /// [1, 1, 0, 1, 0, 0]

@@ -7,10 +7,10 @@ pub mod update_qkd;
 
 mod peer;
 
-use core::generate_uuid_newtype;
-use core::key_state_machine::Key;
 #[cfg(feature = "ec_simcommsys")]
 use ec_simcommsys::{client::SCSApi, config::LdpcCodes};
+use ppaas_core::generate_uuid_newtype;
+use ppaas_core::key_state_machine::Key;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::Display;

@@ -6,4 +6,4 @@ license = "PolyForm-Noncommercial-1.0.0"
 
 [dependencies]
 bitvec = { workspace = true }
-core = { workspace = true }
+ppaas_core = { workspace = true }

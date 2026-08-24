@@ -4,7 +4,7 @@
 use bitvec::prelude::*;
 use std::borrow::Cow;
 
-use core::models::{matrix::Matrix, parity_matrix::ParityMatrix};
+use ppaas_core::models::{matrix::Matrix, parity_matrix::ParityMatrix};
 
 #[derive(Debug)]
 pub enum BPResult {

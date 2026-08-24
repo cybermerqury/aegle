@@ -7,7 +7,7 @@ license = "PolyForm-Noncommercial-1.0.0"
 [dependencies]
 bitvec = { workspace = true }
 clap = { workspace = true }
-core = { workspace = true }
+ppaas_core = { workspace = true }
 error_correction = { path = "../error-correction-cascade/", package="ec_cascade"}
 rand = { workspace = true }
 rayon = { workspace = true }

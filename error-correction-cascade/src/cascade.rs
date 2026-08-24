@@ -6,8 +6,8 @@ use rand::seq::SliceRandom;
 use std::convert::Infallible;
 use std::sync::{Arc, RwLock, Weak};
 
-use core::key_state_machine::{Key, Reconciled, Reconciling};
-use core::{
+use ppaas_core::key_state_machine::{Key, Reconciled, Reconciling};
+use ppaas_core::{
     models::follower_comms::{FollowerRequests, FollowerResponse},
     traits::{PPError, PPStep, PostProcessingSetup, PostProcessingStep},
 };
@@ -337,7 +337,7 @@ fn set_block_parities(blocks: &[CascadeNode], parities: &[bool]) {
 mod tests {
     use super::*;
 
-    use core::models::{DeviceId, KeyId};
+    use ppaas_core::models::{DeviceId, KeyId};
 
     fn create_key(len: usize, error_rate: f64) -> (Key<Reconciling>, Key<Reconciling>) {
         let mut b1 = BitVec::new();

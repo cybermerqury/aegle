@@ -11,13 +11,13 @@ use std::time::Duration;
 
 use bitvec::vec::BitVec;
 use clap::Parser;
-use core::key_state_machine::{Key, Reconciled, Reconciling};
-use core::models::{DeviceId, KeyId};
-use core::{
+use error_correction::cascade::SetupCascade;
+use ppaas_core::key_state_machine::{Key, Reconciled, Reconciling};
+use ppaas_core::models::{DeviceId, KeyId};
+use ppaas_core::{
     models::follower_comms::{FollowerRequests, FollowerResponse},
     traits::{PPStep, PostProcessingSetup, PostProcessingStep},
 };
-use error_correction::cascade::SetupCascade;
 
 fn create_key(len: usize, error_rate: f64) -> (Key<Reconciling>, Key<Reconciling>) {
     let mut b1 = BitVec::new();
