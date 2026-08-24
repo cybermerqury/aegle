@@ -21,6 +21,12 @@ run_aegle_scs_bob:
 run_link_emulator:
 	RUST_LOG=INFO cargo run --bin=emulator config/qkd_link_alice_bob.toml
 
+run_scs_alice:
+	SCS_REST_PORT=8080 scs-ldpc-rest
+
+run_scs_bob:
+	SCS_REST_PORT=8081 scs-ldpc-rest
+
 certificates: $(CERT_DIR)/module.pem
 
 # Variables

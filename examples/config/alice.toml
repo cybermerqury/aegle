@@ -18,7 +18,7 @@ local = "00000000-0000-0000-0000-0000000000ab"
 remote = "00000000-0000-0000-0000-0000000000ba"
 
 [simcommsys]
-base_url = "http://localhost:8000"
+base_url = "http://localhost:8080"
 
 [[simcommsys.ldpc_codes]]
 id = "peg-10000-080-bsc"
