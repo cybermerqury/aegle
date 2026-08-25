@@ -46,8 +46,7 @@ impl SCSApi {
 
         let config = parity_matrix_to_codec(matrix)?;
 
-        #[cfg(debug_assertions)]
-        debug!("Generated config: {config}");
+        debug!("Generated config.");
 
         let response = self.client.post(url).send_json(&json!({
             "codec_id": codec_name,
@@ -89,9 +88,6 @@ impl SCSApi {
         let body = response
             .into_body()
             .read_json::<CalculateSyndromeResponse>()?;
-
-        #[cfg(debug_assertions)]
-        debug!("Syndrome response: {body:?}");
 
         match body {
             CalculateSyndromeResponse::Ok { syndrome } => {

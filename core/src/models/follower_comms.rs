@@ -2,8 +2,8 @@ use bitvec::vec::BitVec;
 
 use crate::models::Toeplitz;
 
-// #[non_exhaustive]
-#[derive(serde::Serialize, serde::Deserialize, Debug)]
+#[derive(serde::Serialize, serde::Deserialize)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub enum FollowerRequests {
     /// Register an LDPC code of the given ID with SimCommSys
     Reveal(Vec<usize>),
@@ -16,6 +16,7 @@ pub enum FollowerRequests {
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub enum FollowerResponse {
     Reveal(BitVec),
     Syndrome(BitVec),
@@ -26,7 +27,7 @@ pub enum FollowerResponse {
     SCSSyndrome(Option<Vec<BitVec>>),
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub enum PAReply {
     Confirmed,
     Error,

@@ -67,10 +67,7 @@ impl SetupSimCommSys {
         code: &Arc<CodeProperties>,
         matrix: &ParityMatrix,
     ) -> ppaas_core::error::Result<()> {
-        debug!(
-            "Registering with simcommsys server as '{}'. Matrix: {:?}",
-            code.id, matrix
-        );
+        debug!("Registering code '{}' with simcommsys server.", code.id);
 
         self.client
             .register(&code.id, matrix)

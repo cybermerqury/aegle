@@ -307,9 +307,6 @@ where
                     .await
                     .inspect_err(|e| warn!("Unable to send request to peer: {:?}", e))?;
 
-                #[cfg(debug_assertions)]
-                debug!("Sent follower request {request:?}");
-
                 let update = read_message(stream, buff)
                     .await
                     .inspect_err(|e| warn!("Unable to parse response: {:?}", e))?;

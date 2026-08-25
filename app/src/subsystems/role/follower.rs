@@ -364,9 +364,6 @@ impl KeyProcessor {
                 .await
                 .inspect_err(|e| warn!("Error processing request: {e:?}"))?;
 
-            #[cfg(debug_assertions)]
-            debug!("Received leader request {request:?}");
-
             match request {
                 FollowerRequests::Reveal(idx) => {
                     let revealed = idx
