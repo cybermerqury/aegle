@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 // SPDX-FileCopyrightText:  © 2024 - 2026 Merqury Cybersecurity Ltd <info@merqury.eu>
 
-use std::io::Write;
 use std::sync::Arc;
-use tokio::sync::mpsc::Receiver;
+use std::{collections::VecDeque, io::Write};
+use tokio::{sync::mpsc::Receiver, task::JoinHandle};
 use tracing::{debug, error, info, instrument, warn, Instrument};
 
 use ppaas_core::{
@@ -31,6 +31,9 @@ use crate::{
 use ec_cascade::cascade::SetupCascade;
 #[cfg(feature = "ec_simcommsys")]
 use ec_simcommsys::{client::SCSApi, config::LdpcCodes, SetupSimCommSys};
+
+/// Decides how many keys can be processed in parallel at any one time. Must be greater than 0.
+const MAX_PARALLEL_KEYS: usize = 1;
 
 struct Leader {
     peer_id: PeerId,
@@ -100,26 +103,46 @@ async fn handle_new_key(
 ) -> SubsystemResult {
     let leader = Arc::new(role);
 
+    // Buffer for storing the task handles of each key currently being processed.
+    let mut handles: VecDeque<JoinHandle<()>> = VecDeque::with_capacity(MAX_PARALLEL_KEYS);
+
     loop {
         let connection = leader.connection();
-        tokio::select! {
+
+        // Ensure we aren't processing more keys than we should.
+        // If we reach the limit, pop off the oldest handle and await it.
+        if handles.len() >= MAX_PARALLEL_KEYS {
+            debug!("Parallel keys limit reached. Awaiting oldest key.");
+            // SAFETY - Checking against `MAX_PARALLEL_KEYS` ensures there's at least one element in the deque.
+            let handle = handles.pop_front().unwrap();
+
+            tokio::select! {
+                _ = monitor.cancelled() => break,
+                _ = connection.closed() => break,
+                res = handle => res?
+            }
+        }
+
+        let key = tokio::select! {
             _ = monitor.cancelled() =>  break,
             _ = connection.closed() => break,
             received = new_key.recv() => {
                 match received {
-                Some(key) => {
-                    let device_id = key.device_id();
-                    if leader.device_id != device_id.into() {
-                        error!("Unexepected key received!");
-                    } else {
-                        monitor.run(process_key(leader.clone(), key).in_current_span());
-                    };
-                },
-                None => break
+                    Some(key) => key,
+                    None => break
                 }
             }
-        }
+        };
+
+        let device_id = key.device_id();
+        if leader.device_id == device_id.into() {
+            let handle = monitor.run(process_key(leader.clone(), key).in_current_span());
+            handles.push_back(handle);
+        } else {
+            error!("Unexepected key received! Discarding.");
+        };
     }
+
     info!("New key listener shutting down");
     Ok(())
 }
