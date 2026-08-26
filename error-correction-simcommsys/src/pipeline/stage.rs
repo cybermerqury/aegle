@@ -97,8 +97,7 @@ impl PostProcessingStep for SimCommSys {
                     None => 0,
                 };
 
-                self.leaked_bits +=
-                    follower_syndromes.iter().fold(0, |acc, s| acc + s.len()) - remaining_bits;
+                self.leaked_bits += follower_syndromes.iter().fold(0, |acc, s| acc + s.len());
 
                 if follower_syndromes.len() != codewords.len() {
                     warn!(

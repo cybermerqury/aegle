@@ -491,8 +491,7 @@ impl KeyProcessor {
                         syndromes.push(syndrome)
                     }
 
-                    leaked_bits +=
-                        syndromes.iter().fold(0, |acc, s| acc + s.len()) - remainder_bits;
+                    leaked_bits += syndromes.iter().fold(0, |acc, s| acc + s.len());
 
                     let response = FollowerResponse::SCSSyndrome(Some(syndromes));
 
