@@ -26,7 +26,8 @@ pub struct SimCommSys {
     code: Arc<CodeProperties>,
     key: Key<Reconciling>,
     /// Contains the final error-corrected key data.
-    reconciled_key: Option<BitVec>,
+    corrected_key: Option<BitVec>,
+    leaked_bits: usize,
     client: Arc<SCSApi>,
     /// Stores the follower syndromes once returned.
     follower_syndromes: Option<Vec<BitVec>>,
@@ -44,7 +45,8 @@ impl SimCommSys {
             error_rate,
             code,
             key,
-            reconciled_key: None,
+            corrected_key: None,
+            leaked_bits: 0,
             client,
             follower_syndromes: None,
             follower_next_step: FollowerPendingStep::Register,
@@ -81,14 +83,22 @@ impl PostProcessingStep for SimCommSys {
 
                 let (codewords, remainder) = self.key.chunks(self.code.block_length);
 
-                if let Some(remainder) = remainder {
-                    warn!(
-                        "Key does not fit cleanly into word size. Word size: {}, key size: {}, remaining bits: {}",
-                        self.code.block_length,
-                        self.key.get_interior_ref().len(),
-                        remainder.len()
-                    );
-                }
+                let remaining_bits = match remainder {
+                    Some(remainder) => {
+                        let remaining_bits = remainder.len();
+                        warn!(
+                            "Key does not fit cleanly into block. Block length: {}, key size: {}, remaining bits: {}",
+                            self.code.block_length,
+                            self.key.get_interior_ref().len(),
+                            remainder.len()
+                        );
+                        remaining_bits
+                    }
+                    None => 0,
+                };
+
+                self.leaked_bits +=
+                    follower_syndromes.iter().fold(0, |acc, s| acc + s.len()) - remaining_bits;
 
                 if follower_syndromes.len() != codewords.len() {
                     warn!(
@@ -157,7 +167,7 @@ impl PostProcessingStep for SimCommSys {
                     );
                 }
 
-                self.reconciled_key = Some(new_key);
+                self.corrected_key = Some(new_key);
 
                 Ok(PPStep::Result(()))
             }
@@ -191,7 +201,7 @@ impl PostProcessingStep for SimCommSys {
     }
 
     fn finalize(self) -> Result<Key<Self::FinalStage>, PPError> {
-        let (reconciled_key, syndromes) = match (self.reconciled_key, self.follower_syndromes) {
+        let (reconciled_key, syndromes) = match (self.corrected_key, self.follower_syndromes) {
             (Some(key), Some(syndromes)) => Ok((key, syndromes)),
             (Some(_), None) => {
                 // SAFETY - We couldn't have computed the reconciled keys without first storing the syndromes.
@@ -202,11 +212,13 @@ impl PostProcessingStep for SimCommSys {
         }?;
 
         let key_len = reconciled_key.len();
-        let leaked_bits = syndromes.into_iter().flatten().count();
 
-        info!("Reconciling {key_len}-bit key with {leaked_bits} leaked bits.");
+        info!(
+            "Reconciling {key_len}-bit key with {} leaked bits.",
+            self.leaked_bits
+        );
 
         // TODO: Verify validity of leaked bits.
-        Ok(self.key.reconcile(reconciled_key.into(), 0))
+        Ok(self.key.reconcile(reconciled_key.into(), self.leaked_bits))
     }
 }

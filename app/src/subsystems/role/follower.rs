@@ -453,12 +453,14 @@ impl KeyProcessor {
 
                     let (codewords, remainder) = key.chunks(code.block_length);
 
+                    let key_length = key.get_interior_ref().len();
+
                     let remainder_bits = match remainder {
                         Some(remainder) => {
                             warn!(
                                 "Key does not fit cleanly into block length. Block length: {}, key size: {}, remaining bits: {}",
                                 code.block_length,
-                                key.get_interior_ref().len(),
+                                key_length,
                                 remainder.len()
                             );
                             remainder.len()
@@ -469,13 +471,11 @@ impl KeyProcessor {
                         }
                     };
 
-                    final_key_length = key.get_interior_ref().len() - remainder_bits;
+                    final_key_length = key_length - remainder_bits;
 
                     debug!(
                         "Key of {} bits chunked into {}-bit words. Remainder: {} bits",
-                        code.block_length,
-                        key.get_interior_ref().len(),
-                        remainder_bits
+                        code.block_length, key_length, remainder_bits
                     );
 
                     let mut syndromes = Vec::with_capacity(codewords.len());
