@@ -18,12 +18,16 @@ where
 {
     bincode::serialize(value)
 }
+
 pub async fn read_message<'a, T>(stream: &mut QuinnStream, buff: &'a mut [u8]) -> MainResult<T>
 where
     T: serde::Deserialize<'a>,
 {
+    // Initialise an exact-length subslice from the buffer, equal to the number of bytes declared by the stream.
     let n: usize = stream.read_len().await?.try_into()?;
-    let bytes = stream.read(buff).await?;
+    let buff_slice = &mut buff[0..n];
+
+    let bytes = stream.read_exact(buff_slice).await?;
     Ok(from_bytes(bytes)?)
 }
 

@@ -44,6 +44,7 @@ impl QuinnStream {
         }
     }
 
+    /// Reads a `u32` from the stream.
     pub async fn read_len(&mut self) -> MainResult<u32> {
         Ok(self.reader.read_u32().await?)
     }

@@ -9,7 +9,7 @@ use ppaas_core::{
 use std::sync::Arc;
 
 use bitvec::vec::BitVec;
-use tracing::{debug, info, warn};
+use tracing::{Level, debug, info, instrument, warn};
 
 use crate::{client::SCSApi, config::CodeProperties};
 
@@ -63,13 +63,19 @@ impl PostProcessingStep for SimCommSys {
     ///
     /// 1. `FollowerPendingStep::Register` -> Follower registers LDPC code to be used.
     /// 2. `FollowerPendingStep::GetSyndrome` -> Follower obtains syndrome for the key (split into fixed-size chunks of key data according to code size).
-    /// 3. `FollowerPendingStep::DecodeKey` ->
+    /// 3. `FollowerPendingStep::DecodeKey` -> Perform final decoding of the key.
+    #[instrument(skip_all, err(level = Level::ERROR))]
     fn step(&mut self) -> Result<PPStep<Self::Result, FollowerRequests>, PPError> {
         match self.follower_next_step {
-            FollowerPendingStep::Register => Ok(PPStep::GetUpdate(
-                FollowerRequests::SCSRegisterCode(self.code.id.clone()),
-            )),
+            FollowerPendingStep::Register => {
+                info!("Follower needs to register chosen code '{}'.", self.code.id);
+
+                Ok(PPStep::GetUpdate(FollowerRequests::SCSRegisterCode(
+                    self.code.id.clone(),
+                )))
+            }
             FollowerPendingStep::GetSyndrome => {
+                info!("Requesting syndromes from follower.");
                 Ok(PPStep::GetUpdate(FollowerRequests::SCSSyndrome))
             }
             FollowerPendingStep::DecodeKey => {
@@ -173,7 +179,11 @@ impl PostProcessingStep for SimCommSys {
         }
     }
 
+    #[instrument(skip_all, err(level = Level::ERROR))]
     fn update(&mut self, response: FollowerResponse) -> Result<(), PPError> {
+        #[cfg(debug_assertions)]
+        debug!("Received follower response '{response:?}'.");
+
         match (self.follower_next_step, response) {
             (FollowerPendingStep::Register, FollowerResponse::SCSRegisterCode(true)) => {
                 info!("Follower registered with SimCommSys successfully.");

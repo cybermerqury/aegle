@@ -119,7 +119,9 @@ async fn handle_new_key(
             tokio::select! {
                 _ = monitor.cancelled() => break,
                 _ = connection.closed() => break,
-                res = handle => res?
+                res = handle => if let Err(e) = res {
+                    error!("Key processing failed. Error: {e}");
+                }
             }
         }
 
@@ -303,9 +305,15 @@ where
                 break;
             }
             Ok(PPStep::GetUpdate(request)) => {
+                #[cfg(debug_assertions)]
+                debug!("Sending request to follower. Request: {request:?}");
+
                 send_message(stream, &request)
                     .await
                     .inspect_err(|e| warn!("Unable to send request to peer: {:?}", e))?;
+
+                #[cfg(debug_assertions)]
+                debug!("Done. Waiting for response.");
 
                 let update = read_message(stream, buff)
                     .await
