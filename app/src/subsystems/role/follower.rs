@@ -15,15 +15,13 @@ use ec_simcommsys::{
     config::{CodeProperties, LdpcCodes},
 };
 
-#[cfg(debug_assertions)]
-use ppaas_core::obtain_key_hash;
 use ppaas_core::{
     key_state_machine::{Key, Reconciling, Secret, Sifted},
     models::{
         follower_comms::{FollowerRequests, FollowerResponse, PAReply},
         parity_matrix::ParityMatrix,
     },
-    spawn_subsystem,
+    obtain_key_hash, spawn_subsystem,
     sync::tasks::{Monitor, TaskManager},
 };
 
@@ -493,10 +491,9 @@ impl KeyProcessor {
 
                         debug!("Syndrome for codeword {codeword}: {syndrome}");
 
+                        leaked_bits += syndrome.len();
                         syndromes.insert(i, syndrome);
                     }
-
-                    leaked_bits += syndromes.iter().fold(0, |acc, (_, s)| acc + s.len());
 
                     let response = FollowerResponse::SCSSyndrome(Some(syndromes));
 
@@ -505,6 +502,28 @@ impl KeyProcessor {
                     self.send_msg(&response).await.inspect_err(|e| {
                         warn!("Unable to send syndrome calculation result. Error: {e:?}")
                     })?;
+                }
+                #[cfg(feature = "ec_simcommsys")]
+                FollowerRequests::SCSHashCheck => {
+                    let code = &ldpc_code.as_ref().ok_or_else(|| {
+                        SubsystemError::new(
+                            "LDPC code not yet selected. Follower didn't yet register code",
+                        )
+                    })?;
+
+                    let usable_len =
+                        (key.length() as u64).strict_div(code.block_length) * code.block_length;
+
+                    let key_slice = &key.get_interior_ref()[0..usable_len as usize];
+
+                    let hash = obtain_key_hash(key_slice);
+
+                    #[cfg(debug_assertions)]
+                    debug!("Calculated hash for key: {hash}");
+
+                    self.send_msg(&FollowerResponse::SCSHashCheck(hash))
+                        .await
+                        .inspect_err(|e| warn!("Unable to send hash result. Error: {e:?}"))?;
                 }
             }
         }

@@ -4,6 +4,7 @@
 use ppaas_core::{
     key_state_machine::{Key, Reconciled, Reconciling},
     models::follower_comms::{FollowerRequests, FollowerResponse},
+    obtain_key_hash,
     traits::{PPError, PPStep, PostProcessingStep},
 };
 use std::{collections::HashMap, sync::Arc};
@@ -19,6 +20,7 @@ enum FollowerPendingStep {
     Register,
     GetSyndrome,
     DecodeKey,
+    HashCheck,
 }
 
 pub struct SimCommSys {
@@ -31,6 +33,7 @@ pub struct SimCommSys {
     client: Arc<SCSApi>,
     /// Stores the follower syndromes once returned.
     follower_syndromes: Option<HashMap<usize, BitVec>>,
+    follower_hash: Option<u64>,
     follower_next_step: FollowerPendingStep,
 }
 
@@ -49,6 +52,7 @@ impl SimCommSys {
             leaked_bits: 0,
             client,
             follower_syndromes: None,
+            follower_hash: None,
             follower_next_step: FollowerPendingStep::Register,
         }
     }
@@ -187,7 +191,29 @@ impl PostProcessingStep for SimCommSys {
 
                 self.corrected_key = Some(new_key);
 
-                Ok(PPStep::Result(()))
+                Ok(PPStep::GetUpdate(FollowerRequests::SCSHashCheck))
+            }
+            FollowerPendingStep::HashCheck => {
+                info!("Performing final key hash-check with follower.");
+
+                let follower_hash = self
+                    .follower_hash
+                    .ok_or_else(|| PPError::new("No follower key hash found"))?;
+
+                let our_key = self
+                    .corrected_key
+                    .as_ref()
+                    .ok_or_else(|| PPError::new("Corrected key not found"))?;
+
+                let our_hash = obtain_key_hash(our_key);
+
+                if our_hash == follower_hash {
+                    debug!("Key hashes match.");
+
+                    Ok(PPStep::Result(()))
+                } else {
+                    Err(PPError::new("Follower key hash does not match our hash"))
+                }
             }
         }
     }
@@ -208,15 +234,25 @@ impl PostProcessingStep for SimCommSys {
             ),
             (FollowerPendingStep::GetSyndrome, FollowerResponse::SCSSyndrome(Some(syndromes))) => {
                 info!("Obtained syndromes from follower.");
-                debug!("Syndromes: {syndromes:?}.");
-                self.follower_next_step = FollowerPendingStep::DecodeKey;
 
+                #[cfg(debug_assertions)]
+                debug!("Syndromes: {syndromes:?}.");
+
+                self.follower_next_step = FollowerPendingStep::DecodeKey;
                 self.follower_syndromes = Some(syndromes);
 
                 Ok(())
             }
             (FollowerPendingStep::GetSyndrome, FollowerResponse::SCSSyndrome(None)) => {
                 Err(PPError::new("Follower failed to compute syndromes."))
+            }
+            (FollowerPendingStep::DecodeKey, FollowerResponse::SCSHashCheck(follower_hash)) => {
+                info!("Received key hash from follower.");
+
+                self.follower_next_step = FollowerPendingStep::HashCheck;
+                self.follower_hash = Some(follower_hash);
+
+                Ok(())
             }
             _ => Err(PPError::new("Unexpected follower response received.")),
         }

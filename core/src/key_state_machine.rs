@@ -161,10 +161,9 @@ impl Key<Reconciling> {
     pub fn chunks(&self, codeword_len: u64) -> (Vec<&BitSlice>, Option<&BitSlice>) {
         let codeword_iter = self.get_interior_ref().chunks_exact(codeword_len as usize);
 
-        let remainder = codeword_iter.remainder();
-        let remainder = match remainder.is_empty() {
-            true => None,
-            false => Some(remainder),
+        let remainder = match codeword_iter.remainder() {
+            r if r.is_empty() => None,
+            r => Some(r),
         };
 
         (codeword_iter.collect(), remainder)

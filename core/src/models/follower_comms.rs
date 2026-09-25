@@ -16,6 +16,8 @@ pub enum FollowerRequests {
     SCSRegisterCode(String),
     #[cfg(feature = "ec_simcommsys")]
     SCSSyndrome,
+    #[cfg(feature = "ec_simcommsys")]
+    SCSHashCheck,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -28,6 +30,8 @@ pub enum FollowerResponse {
     SCSRegisterCode(bool),
     #[cfg(feature = "ec_simcommsys")]
     SCSSyndrome(Option<HashMap<usize, BitVec>>),
+    #[cfg(feature = "ec_simcommsys")]
+    SCSHashCheck(u64),
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]

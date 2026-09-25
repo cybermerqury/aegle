@@ -8,7 +8,6 @@ pub mod models;
 pub mod sync;
 pub mod traits;
 
-#[cfg(debug_assertions)]
 pub fn obtain_key_hash(key: &bitvec::slice::BitSlice) -> u64 {
     use std::hash::{Hash, Hasher};
 
