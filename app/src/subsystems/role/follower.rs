@@ -15,6 +15,8 @@ use ec_simcommsys::{
     config::{CodeProperties, LdpcCodes},
 };
 
+#[cfg(debug_assertions)]
+use ppaas_core::obtain_key_hash;
 use ppaas_core::{
     key_state_machine::{Key, Reconciling, Secret, Sifted},
     models::{
@@ -25,7 +27,6 @@ use ppaas_core::{
     sync::tasks::{Monitor, TaskManager},
 };
 
-use crate::communication::key_processing::{RegisterKey, RegisterReply};
 use crate::communication::parse::{read_message, send_message};
 use crate::communication::quic::QuinnStream;
 #[cfg(feature = "ec_simcommsys")]
@@ -326,7 +327,12 @@ impl KeyProcessor {
             }
         };
 
-        debug!("Saving secret key.");
+        #[cfg(debug_assertions)]
+        debug!(
+            "Saving secret key. Key ID: {}, hash: {}",
+            secret_key.key_id(),
+            obtain_key_hash(secret_key.get_interior_ref())
+        );
 
         if let Err(e) = CsvWriter::new(secret_key.device_id()).write_key(&secret_key) {
             error!("Failed to save key to CSV. Error: {e:?}");
@@ -346,6 +352,12 @@ impl KeyProcessor {
 
         #[cfg(feature = "ec_simcommsys")]
         let mut ldpc_code: Option<Arc<CodeProperties>> = None;
+
+        #[cfg(debug_assertions)]
+        debug!(
+            "Constructing secret key. Current key hash: {}",
+            obtain_key_hash(key.get_interior_ref())
+        );
 
         loop {
             let request: FollowerRequests = self
@@ -380,7 +392,11 @@ impl KeyProcessor {
                         .inspect_err(|e| warn!("Error sending syndrome to peer: {e:?}"))?;
                 }
                 FollowerRequests::PrivacyAmplification(toeplitz) => {
-                    info!("Reconciling key with {leaked_bits} leaked bits.");
+                    #[cfg(debug_assertions)]
+                    debug!(
+                        "Reconciling key with {leaked_bits} leaked bits. Key hash: {}",
+                        obtain_key_hash(key.get_interior_ref())
+                    );
 
                     let data = key.get_interior_ref()[0..final_key_length].to_bitvec();
 
@@ -484,6 +500,8 @@ impl KeyProcessor {
 
                     let response = FollowerResponse::SCSSyndrome(Some(syndromes));
 
+                    debug!("Sending syndrome response.");
+
                     self.send_msg(&response).await.inspect_err(|e| {
                         warn!("Unable to send syndrome calculation result. Error: {e:?}")
                     })?;
@@ -492,6 +510,7 @@ impl KeyProcessor {
         }
     }
 
+    #[instrument(skip_all, err(Debug, level = Level::ERROR))]
     async fn send_msg<T>(&mut self, msg: &T) -> MainResult<()>
     where
         T: Serialize,
@@ -499,6 +518,7 @@ impl KeyProcessor {
         send_message(&mut self.stream, msg).await
     }
 
+    #[instrument(skip_all, err(Debug, level = Level::ERROR))]
     async fn recv_msg<'a, T>(&mut self, buf: &'a mut [u8]) -> MainResult<T>
     where
         T: Deserialize<'a>,

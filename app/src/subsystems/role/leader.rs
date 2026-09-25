@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 // SPDX-FileCopyrightText:  © 2024 - 2026 Merqury Cybersecurity Ltd <info@merqury.eu>
 
+use std::collections::VecDeque;
 use std::sync::Arc;
-use std::{collections::VecDeque, io::Write};
 use tokio::{sync::mpsc::Receiver, task::JoinHandle};
 use tracing::{debug, error, info, instrument, warn, Instrument};
 
+#[cfg(debug_assertions)]
+use ppaas_core::obtain_key_hash;
 use ppaas_core::{
     key_state_machine::{Key, Reconciling, Secret, Sifted},
     models::follower_comms::FollowerRequests,
@@ -238,7 +240,12 @@ async fn process_key(leader: Arc<Leader>, key: Key<Sifted>) {
         RegisterReply::LengthMismatch(_) => {}
     }
 
-    info!("Starting post processing");
+    #[cfg(debug_assertions)]
+    info!(
+        "Starting post processing. Key hash: {}",
+        obtain_key_hash(key.get_interior_ref())
+    );
+
     let cur_pipeline = match create_pipeline(
         key.verify().start_reconciliation(),
         #[cfg(feature = "ec_simcommsys")]
@@ -261,9 +268,12 @@ async fn process_key(leader: Arc<Leader>, key: Key<Sifted>) {
         }
     };
 
-    debug!("Saving secret key");
-
-    debug!("Saving secret key.");
+    #[cfg(debug_assertions)]
+    debug!(
+        "Saving secret key. Key ID: {}, hash: {}",
+        key.key_id(),
+        obtain_key_hash(key.get_interior_ref())
+    );
 
     if let Err(e) = CsvWriter::new(key.device_id()).write_key(&key) {
         error!("Failed to save key to CSV. Error: {e:?}");

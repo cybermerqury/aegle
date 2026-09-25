@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 // SPDX-FileCopyrightText:  © 2024 - 2026 Merqury Cybersecurity Ltd <info@merqury.eu>
 
+#[cfg(debug_assertions)]
+use ppaas_core::obtain_key_hash;
 use ppaas_core::{
     key_state_machine::{Key, Reconciled, Secret},
     models::{
@@ -11,7 +13,7 @@ use ppaas_core::{
 };
 use std::convert::Infallible;
 
-use tracing::{instrument, warn};
+use tracing::{debug, instrument, warn};
 
 pub struct SetupPrivacyAmplification;
 
@@ -60,10 +62,22 @@ impl PostProcessingStep for PrivacyAmplification {
             }
             KeyState::WaitingForConfirm(key) => {
                 if self.confirmed {
+                    #[cfg(debug_assertions)]
+                    debug!(
+                        "Performing privacy amplification. Key hash before PA: {}",
+                        obtain_key_hash(key.get_interior_ref())
+                    );
+
                     let secret_key = key.privacy_amplification(&self.toeplitz).map_err(|e| {
                         warn!("Privacy amplification failed. Error: {e}");
                         PPError::new("Unable to apply hash function")
                     })?;
+
+                    #[cfg(debug_assertions)]
+                    debug!(
+                        "Key hash AFTER PA: {}",
+                        obtain_key_hash(secret_key.get_interior_ref())
+                    );
 
                     self.key = KeyState::Confirmed(secret_key);
                     Ok(PPStep::Result(()))

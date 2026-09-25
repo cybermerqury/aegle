@@ -148,27 +148,30 @@ impl PostProcessingStep for SimCommSys {
                     .flatten()
                     .collect::<BitVec>();
 
-                let old_key_slice = if self.key.get_interior_ref().len() >= new_key.len() {
-                    &self.key.get_interior_ref()[0..new_key.len()]
-                } else {
-                    return Err(PPError::new(
-                        "New key is too large; Shape does not match expected shape.",
-                    ));
-                };
-
-                let total_diff: usize = old_key_slice
-                    .into_iter()
-                    .zip(new_key.as_bitslice())
-                    .fold(0, |acc, (l, r)| acc + (*l == *r) as usize);
-
                 #[cfg(debug_assertions)]
-                if new_key.len() > 1000 {
-                    info!("Corrected bits: {total_diff}.",);
-                } else {
+                {
+                    use ppaas_core::obtain_key_hash;
+
+                    let old_key_slice = if self.key.get_interior_ref().len() >= new_key.len() {
+                        &self.key.get_interior_ref()[0..new_key.len()]
+                    } else {
+                        return Err(PPError::new(
+                            "New key is too large; Shape does not match expected shape.",
+                        ));
+                    };
+
+                    let total_diff: usize = old_key_slice
+                        .iter()
+                        .zip(new_key.as_bitslice())
+                        .fold(0, |acc, (l, r)| acc + (*l == *r) as usize);
+
+                    let unsliced_key_hash = obtain_key_hash(self.key.get_interior_ref());
+                    let old_key_hash = obtain_key_hash(old_key_slice);
+                    let new_key_hash = obtain_key_hash(&new_key);
+
                     info!(
-                        "Corrected bits: {total_diff}, Old key: {}, New key: {}",
-                        self.key.get_interior_ref(),
-                        new_key
+                        "Corrected bits: {}. Original key hash: {}, Key hash BEFORE SCS: {}, Key hash AFTER SCS: {}",
+                        total_diff, unsliced_key_hash, old_key_hash, new_key_hash
                     );
                 }
 
@@ -210,7 +213,7 @@ impl PostProcessingStep for SimCommSys {
     }
 
     fn finalize(self) -> Result<Key<Self::FinalStage>, PPError> {
-        let (reconciled_key, syndromes) = match (self.corrected_key, self.follower_syndromes) {
+        let (reconciled_key, _) = match (self.corrected_key, self.follower_syndromes) {
             (Some(key), Some(syndromes)) => Ok((key, syndromes)),
             (Some(_), None) => {
                 // SAFETY - We couldn't have computed the reconciled keys without first storing the syndromes.
@@ -227,7 +230,6 @@ impl PostProcessingStep for SimCommSys {
             self.leaked_bits
         );
 
-        // TODO: Verify validity of leaked bits.
         Ok(self.key.reconcile(reconciled_key.into(), self.leaked_bits))
     }
 }
