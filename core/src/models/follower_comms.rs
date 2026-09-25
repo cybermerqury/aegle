@@ -1,3 +1,6 @@
+#[cfg(feature = "ec_simcommsys")]
+use std::collections::HashMap;
+
 use bitvec::vec::BitVec;
 
 use crate::models::Toeplitz;
@@ -24,7 +27,7 @@ pub enum FollowerResponse {
     #[cfg(feature = "ec_simcommsys")]
     SCSRegisterCode(bool),
     #[cfg(feature = "ec_simcommsys")]
-    SCSSyndrome(Option<Vec<BitVec>>),
+    SCSSyndrome(Option<HashMap<usize, BitVec>>),
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]

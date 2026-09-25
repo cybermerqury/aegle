@@ -6,7 +6,7 @@ use ppaas_core::{
     models::follower_comms::{FollowerRequests, FollowerResponse},
     traits::{PPError, PPStep, PostProcessingStep},
 };
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use bitvec::vec::BitVec;
 use tracing::{Level, debug, info, instrument, warn};
@@ -30,7 +30,7 @@ pub struct SimCommSys {
     leaked_bits: usize,
     client: Arc<SCSApi>,
     /// Stores the follower syndromes once returned.
-    follower_syndromes: Option<Vec<BitVec>>,
+    follower_syndromes: Option<HashMap<usize, BitVec>>,
     follower_next_step: FollowerPendingStep,
 }
 
@@ -89,26 +89,31 @@ impl PostProcessingStep for SimCommSys {
 
                 let (codewords, remainder) = self.key.chunks(self.code.block_length);
 
-                let remaining_bits = match remainder {
-                    Some(remainder) => {
-                        let remaining_bits = remainder.len();
-                        warn!(
-                            "Key does not fit cleanly into block. Block length: {}, key size: {}, remaining bits: {}",
-                            self.code.block_length,
-                            self.key.get_interior_ref().len(),
-                            remainder.len()
-                        );
+                #[cfg(debug_assertions)]
+                if let Some(remainder) = remainder {
+                    let remaining_bits = remainder.len();
+                    warn!(
+                        "Key does not fit cleanly into block. Block length: {}, key size: {}, total remaining bits: {}, remaining bits: {}",
+                        self.code.block_length,
+                        self.key.get_interior_ref().len(),
+                        remainder.len(),
                         remaining_bits
-                    }
-                    None => 0,
-                };
+                    );
+                }
 
-                self.leaked_bits += follower_syndromes.iter().fold(0, |acc, s| acc + s.len());
+                let mut syndromes_vec = follower_syndromes.into_iter().collect::<Vec<_>>();
 
-                if follower_syndromes.len() != codewords.len() {
+                if !syndromes_vec.is_sorted_by_key(|(i, _)| i) {
+                    warn!("Syndromes are out-of-order. Re-sorting.");
+                    syndromes_vec.sort_by_key(|(i, _)| **i);
+                }
+
+                self.leaked_bits += syndromes_vec.iter().fold(0, |acc, (_, s)| acc + s.len());
+
+                if syndromes_vec.len() != codewords.len() {
                     warn!(
                         "Incorrect quantity of syndromes or codewords. Syndrome count: {}, Codeword count: {}",
-                        follower_syndromes.len(),
+                        syndromes_vec.len(),
                         codewords.len()
                     );
 
@@ -117,9 +122,14 @@ impl PostProcessingStep for SimCommSys {
                     ));
                 }
 
+                let syndromes_vec = syndromes_vec
+                    .into_iter()
+                    .map(|(_, s)| s)
+                    .collect::<Vec<_>>();
+
                 let mut corrected_codewords = Vec::with_capacity(codewords.len());
 
-                for (codeword, syndrome) in codewords.into_iter().zip(follower_syndromes) {
+                for (codeword, syndrome) in codewords.into_iter().zip(syndromes_vec) {
                     let corrected_codeword = match self.client.decode(
                         &self.code.id,
                         self.error_rate,

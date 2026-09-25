@@ -483,20 +483,20 @@ impl KeyProcessor {
                         code.block_length, key_length, remainder_bits
                     );
 
-                    let mut syndromes = Vec::with_capacity(codewords.len());
+                    let mut syndromes = HashMap::with_capacity(codewords.len());
 
-                    for codeword in &codewords {
+                    for (i, codeword) in codewords.iter().enumerate() {
                         let syndrome = self
                             .scs_client
-                            .calculate_syndrome(&code.id, &codeword)
+                            .calculate_syndrome(&code.id, codeword)
                             .inspect_err(|e| warn!("Syndrome calculation failed. Error: {e}"))?;
 
                         debug!("Syndrome for codeword {codeword}: {syndrome}");
 
-                        syndromes.push(syndrome)
+                        syndromes.insert(i, syndrome);
                     }
 
-                    leaked_bits += syndromes.iter().fold(0, |acc, s| acc + s.len());
+                    leaked_bits += syndromes.iter().fold(0, |acc, (_, s)| acc + s.len());
 
                     let response = FollowerResponse::SCSSyndrome(Some(syndromes));
 
