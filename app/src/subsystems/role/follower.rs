@@ -327,7 +327,7 @@ impl KeyProcessor {
 
         #[cfg(debug_assertions)]
         debug!(
-            "Saving secret key. Key ID: {}, hash: {}",
+            "Saving secret key. Key ID: {}, hash: {:?}",
             secret_key.key_id(),
             obtain_key_hash(secret_key.get_interior_ref())
         );
@@ -353,7 +353,7 @@ impl KeyProcessor {
 
         #[cfg(debug_assertions)]
         debug!(
-            "Constructing secret key. Current key hash: {}",
+            "Constructing secret key. Current key hash: {:?}",
             obtain_key_hash(key.get_interior_ref())
         );
 
@@ -392,7 +392,7 @@ impl KeyProcessor {
                 FollowerRequests::PrivacyAmplification(toeplitz) => {
                     #[cfg(debug_assertions)]
                     debug!(
-                        "Reconciling key with {leaked_bits} leaked bits. Key hash: {}",
+                        "Reconciling key with {leaked_bits} leaked bits. Key hash: {:?}",
                         obtain_key_hash(key.get_interior_ref())
                     );
 
@@ -519,7 +519,7 @@ impl KeyProcessor {
                     let hash = obtain_key_hash(key_slice);
 
                     #[cfg(debug_assertions)]
-                    debug!("Calculated hash for key: {hash}");
+                    debug!("Calculated hash for key: {hash:?}");
 
                     self.send_msg(&FollowerResponse::SCSHashCheck(hash))
                         .await

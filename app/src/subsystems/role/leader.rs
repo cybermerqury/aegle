@@ -242,7 +242,7 @@ async fn process_key(leader: Arc<Leader>, key: Key<Sifted>) {
 
     #[cfg(debug_assertions)]
     info!(
-        "Starting post processing. Key hash: {}",
+        "Starting post processing. Key hash: {:?}",
         obtain_key_hash(key.get_interior_ref())
     );
 
@@ -270,7 +270,7 @@ async fn process_key(leader: Arc<Leader>, key: Key<Sifted>) {
 
     #[cfg(debug_assertions)]
     debug!(
-        "Saving secret key. Key ID: {}, hash: {}",
+        "Saving secret key. Key ID: {}, hash: {:?}",
         key.key_id(),
         obtain_key_hash(key.get_interior_ref())
     );

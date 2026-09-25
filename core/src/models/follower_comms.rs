@@ -30,8 +30,9 @@ pub enum FollowerResponse {
     SCSRegisterCode(bool),
     #[cfg(feature = "ec_simcommsys")]
     SCSSyndrome(Option<HashMap<usize, BitVec>>),
+    // TODO - Replace with more secure hash function.
     #[cfg(feature = "ec_simcommsys")]
-    SCSHashCheck(u64),
+    SCSHashCheck(Vec<u8>),
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]

@@ -64,7 +64,7 @@ impl PostProcessingStep for PrivacyAmplification {
                 if self.confirmed {
                     #[cfg(debug_assertions)]
                     debug!(
-                        "Performing privacy amplification. Key hash before PA: {}",
+                        "Performing privacy amplification. Key hash before PA: {:?}",
                         obtain_key_hash(key.get_interior_ref())
                     );
 
@@ -75,7 +75,7 @@ impl PostProcessingStep for PrivacyAmplification {
 
                     #[cfg(debug_assertions)]
                     debug!(
-                        "Key hash AFTER PA: {}",
+                        "Key hash AFTER PA: {:?}",
                         obtain_key_hash(secret_key.get_interior_ref())
                     );
 

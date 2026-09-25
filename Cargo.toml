@@ -44,3 +44,4 @@ tracing-appender = { version = "0.2.3" }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter", "json"] }
 ureq = { version = "3.3.0", features = ["json"] }
 uuid = { version = "1.8.0", features = ["v4", "serde"] }
+sha3 = { version = "0.12.0" }

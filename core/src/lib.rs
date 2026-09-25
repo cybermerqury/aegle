@@ -8,11 +8,11 @@ pub mod models;
 pub mod sync;
 pub mod traits;
 
-pub fn obtain_key_hash(key: &bitvec::slice::BitSlice) -> u64 {
-    use std::hash::{Hash, Hasher};
+use sha3::{Digest, Sha3_512};
 
-    let mut hasher = std::hash::DefaultHasher::new();
-    key.hash(&mut hasher);
+/// Hash the given bitslice using SHA3_512. Returns a byte-vec representing the hash.
+pub fn obtain_key_hash(key: &bitvec::slice::BitSlice) -> Vec<u8> {
+    let array = key.iter().by_vals().map(|b| b as u8).collect::<Vec<u8>>();
 
-    hasher.finish()
+    Sha3_512::digest(array).to_vec()
 }

@@ -33,7 +33,7 @@ pub struct SimCommSys {
     client: Arc<SCSApi>,
     /// Stores the follower syndromes once returned.
     follower_syndromes: Option<HashMap<usize, BitVec>>,
-    follower_hash: Option<u64>,
+    follower_hash: Option<Vec<u8>>,
     follower_next_step: FollowerPendingStep,
 }
 
@@ -184,7 +184,7 @@ impl PostProcessingStep for SimCommSys {
                     let new_key_hash = obtain_key_hash(&new_key);
 
                     info!(
-                        "Corrected bits: {}. Original key hash: {}, Key hash BEFORE SCS: {}, Key hash AFTER SCS: {}",
+                        "Corrected bits: {}. Original key hash: {:?}, Key hash BEFORE SCS: {:?}, Key hash AFTER SCS: {:?}",
                         total_diff, unsliced_key_hash, old_key_hash, new_key_hash
                     );
                 }
@@ -198,6 +198,7 @@ impl PostProcessingStep for SimCommSys {
 
                 let follower_hash = self
                     .follower_hash
+                    .as_ref()
                     .ok_or_else(|| PPError::new("No follower key hash found"))?;
 
                 let our_key = self
@@ -207,7 +208,7 @@ impl PostProcessingStep for SimCommSys {
 
                 let our_hash = obtain_key_hash(our_key);
 
-                if our_hash == follower_hash {
+                if follower_hash.eq(&our_hash) {
                     debug!("Key hashes match.");
 
                     Ok(PPStep::Result(()))
