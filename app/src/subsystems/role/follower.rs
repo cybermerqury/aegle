@@ -4,11 +4,10 @@
 use bitvec::vec::BitVec;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::io::Write;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{mpsc, oneshot};
-use tracing::{debug, error, info, instrument, warn, Instrument};
+use tracing::{debug, error, info, instrument, warn, Instrument, Level};
 
 #[cfg(feature = "ec_simcommsys")]
 use ec_simcommsys::{
@@ -33,6 +32,10 @@ use crate::communication::quic::QuinnStream;
 use crate::errors::SubsystemError;
 use crate::errors::{MainResult, SubsystemResult};
 use crate::models::{DeviceId, FullId, FullKeyId, KeyId, LocalDeviceId, PeerId};
+use crate::{
+    communication::key_processing::{RegisterKey, RegisterReply},
+    csv_writer::CsvWriter,
+};
 
 type NewKeyEntry = (
     Option<oneshot::Sender<Key<Sifted>>>,
@@ -325,24 +328,10 @@ impl KeyProcessor {
 
         debug!("Saving secret key.");
 
-        let mut file = std::fs::OpenOptions::new()
-            .append(true)
-            .create(true)
-            .open(format!("{}.csv", secret_key.device_id()))
-            .unwrap();
-        let _ = file.write_all(
-            format!(
-                "{},{}\n",
-                secret_key.key_id(),
-                secret_key
-                    .get_interior_ref()
-                    .iter()
-                    .by_vals()
-                    .map(|b| if b { "1" } else { "0" })
-                    .collect::<String>()
-            )
-            .as_bytes(),
-        );
+        if let Err(e) = CsvWriter::new(secret_key.device_id()).write_key(&secret_key) {
+            error!("Failed to save key to CSV. Error: {e:?}");
+        }
+
         info!("Post processing finished");
     }
 

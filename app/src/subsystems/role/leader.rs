@@ -13,6 +13,7 @@ use ppaas_core::{
     traits::{PPError, PPStep, PostProcessingStep},
 };
 
+use crate::csv_writer::CsvWriter;
 use crate::{
     communication::{
         key_processing::{RegisterKey, RegisterReply},
@@ -262,24 +263,12 @@ async fn process_key(leader: Arc<Leader>, key: Key<Sifted>) {
 
     debug!("Saving secret key");
 
-    let mut file = std::fs::OpenOptions::new()
-        .append(true)
-        .create(true)
-        .open(format!("{}.csv", key.device_id()))
-        .unwrap();
+    debug!("Saving secret key.");
 
-    let _ = file.write_all(
-        format!(
-            "{},{}\n",
-            key.key_id(),
-            key.get_interior_ref()
-                .iter()
-                .by_vals()
-                .map(|b| if b { "1" } else { "0" })
-                .collect::<String>()
-        )
-        .as_bytes(),
-    );
+    if let Err(e) = CsvWriter::new(key.device_id()).write_key(&key) {
+        error!("Failed to save key to CSV. Error: {e:?}");
+    }
+
     info!("Key reconciled");
 }
 

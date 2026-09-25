@@ -4,6 +4,7 @@
 mod cli;
 mod communication;
 mod config;
+mod csv_writer;
 mod errors;
 mod models;
 mod subsystems;
