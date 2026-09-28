@@ -3,10 +3,9 @@
 
 use serde::Serialize;
 use std::collections::VecDeque;
+use std::fs::OpenOptions;
 use std::sync::Arc;
-use tokio::fs::OpenOptions;
-use tokio::io::AsyncWriteExt;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, MutexGuard};
 use tokio::{sync::mpsc::Receiver, task::JoinHandle};
 use tracing::{debug, error, info, instrument, warn, Instrument};
 
@@ -42,7 +41,7 @@ use ec_simcommsys::{client::SCSApi, config::LdpcCodes, SetupSimCommSys};
 /// Decides how many keys can be processed in parallel at any one time. Must be greater than 0.
 const MAX_PARALLEL_KEYS: usize = 1;
 
-#[derive(Serialize, Clone, Copy, Default)]
+#[derive(Serialize, Default)]
 struct KeyMetrics {
     pub total_keys: u64,
     pub successful_keys: u64,
@@ -276,7 +275,7 @@ async fn process_key(leader: Arc<Leader>, key: Key<Sifted>) {
 
     let pp_res = perform_post_processing(cur_pipeline, &leader.metrics, stream, buff).await;
 
-    if let Err(e) = save_metrics(*leader.metrics.lock().await).await {
+    if let Err(e) = save_metrics(leader.metrics.lock().await).await {
         warn!("Failed to save leader metrics. Error: {e:?}.");
     }
 
@@ -323,6 +322,8 @@ where
         cur_pipeline = pipeline;
         match next_step {
             Ok(PPStep::Result(_)) => {
+                metrics.lock().await.successful_keys += 1;
+
                 info!("Finished reconciling");
                 break;
             }
@@ -366,18 +367,16 @@ where
     Ok(key)
 }
 
-async fn save_metrics(metrics: KeyMetrics) -> MainResult<()> {
+async fn save_metrics(metrics: MutexGuard<'_, KeyMetrics>) -> MainResult<()> {
     const LEADER_METRICS_PATH: &str = "leader_metrics.json";
 
     let mut file = OpenOptions::new()
         .create(true)
         .write(true)
-        .open(LEADER_METRICS_PATH)
-        .await?;
+        .truncate(true)
+        .open(LEADER_METRICS_PATH)?;
 
-    let metrics_str = serde_json::to_string_pretty(&metrics)?;
-
-    file.write_all(metrics_str.as_bytes()).await?;
+    serde_json::to_writer_pretty(&mut file, &*metrics)?;
 
     Ok(())
 }
