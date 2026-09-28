@@ -10,7 +10,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use uuid::Uuid;
 
-use core::fs::certificate_handling::load_key_and_certificate;
+use ppaas_core::fs::certificate_handling::load_key_and_certificate;
 
 use crate::errors::{EmulatorResult, ErrorMessage};
 

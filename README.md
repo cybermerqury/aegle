@@ -141,7 +141,7 @@ pub struct Key<T> {
 
 Here, each key state (`Sifted`, `PartiallyRevleaed`, `Reconciled`, etc. ) is a
 separate struct defined under `models.rs`.
-Each `PostProcessingStep` implementation consumes one key in some state state
+Each `PostProcessingStep` implementation consumes one key in some state
 and produces another, ensuring that invalid transitions are impossible.
 Because the `Key` type carries actual data rather than a marker, each state may
 contain the attributes relevant to that processing stage, such as error rates

@@ -5,11 +5,11 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 
 use bitvec::vec::BitVec;
-use core::sync::tasks::Monitor;
+use ppaas_core::sync::tasks::Monitor;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tracing::{error, info, instrument};
 
-use core::key_state_machine::{Key, Sifted};
+use ppaas_core::key_state_machine::{Key, Sifted};
 
 use crate::errors::{MainResult, SubsystemError, SubsystemResult};
 use crate::models::update_qkd::RequestQkdKeys;

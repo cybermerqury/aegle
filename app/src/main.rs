@@ -4,6 +4,7 @@
 mod cli;
 mod communication;
 mod config;
+mod csv_writer;
 mod errors;
 mod models;
 mod subsystems;
@@ -25,7 +26,7 @@ pub enum Roles {
 #[tokio::main]
 async fn main() -> MainResult<()> {
     let args = CliArgs::parse();
-    let config: ModuleConfig = core::fs::config::load_toml_config(args.config_file)?;
+    let config: ModuleConfig = ppaas_core::fs::config::load_toml_config(args.config_file)?;
 
     setup_logging_infra(&config);
 
@@ -36,7 +37,7 @@ async fn main() -> MainResult<()> {
     info!("Starting ppaas module");
     info!("Config is: '{:?}'", config);
 
-    let tm = start_subsystems(&config.module, config.peers)?;
+    let tm = start_subsystems(config)?;
     match tm.monitor().await {
         Ok(Ok(())) => info!("Goodbye"),
         Ok(Err(e)) => error!("Subsystem error: {}", e),

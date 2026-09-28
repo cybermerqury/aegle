@@ -1,35 +1,63 @@
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 // SPDX-FileCopyrightText:  © 2024 - 2026 Merqury Cybersecurity Ltd <info@merqury.eu>
 
-use std::io::Write;
-use tracing::{error, info, instrument, warn, Instrument};
+use serde::Serialize;
+use std::collections::VecDeque;
+use std::fs::OpenOptions;
+use std::sync::Arc;
+use tokio::sync::{Mutex, MutexGuard};
+use tokio::{sync::mpsc::Receiver, task::JoinHandle};
+use tracing::{debug, error, info, instrument, warn, Instrument};
 
-use core::sync::tasks::Monitor;
-use core::{
+#[cfg(debug_assertions)]
+use ppaas_core::obtain_key_hash;
+use ppaas_core::{
     key_state_machine::{Key, Reconciling, Secret, Sifted},
-    traits::{FollowerRequests, FollowerResponse, PPError, PPStep, PostProcessingStep},
+    models::follower_comms::FollowerRequests,
+    sync::tasks::Monitor,
+    traits::{PPError, PPStep, PostProcessingStep},
 };
-use error_correction::cascade::SetupCascade;
-use tokio::sync::mpsc::Receiver;
 
+use crate::csv_writer::CsvWriter;
 use crate::{
     communication::{
         key_processing::{RegisterKey, RegisterReply},
         parse::{read_message, send_message},
         quic::QuinnStream,
     },
-    errors::SubsystemResult,
+    errors::{MainResult, SubsystemError, SubsystemResult},
     models::{
         ber_estimation::{BEREstimation, SetupBerLimit},
         privacy_amplification::SetupPrivacyAmplification,
-        {FullKeyId, LocalDeviceId, PeerId},
+        FullKeyId, LocalDeviceId, PeerId,
     },
 };
+
+#[cfg(feature = "ec_cascade")]
+use ec_cascade::cascade::SetupCascade;
+#[cfg(feature = "ec_simcommsys")]
+use ec_simcommsys::{client::SCSApi, config::LdpcCodes, SetupSimCommSys};
+
+/// Decides how many keys can be processed in parallel at any one time. Must be greater than 0.
+const MAX_PARALLEL_KEYS: usize = 1;
+
+#[derive(Serialize, Default)]
+struct KeyMetrics {
+    pub total_keys: u64,
+    pub successful_keys: u64,
+    pub aborted_keys: u64,
+    pub failed_keys: u64,
+}
 
 struct Leader {
     peer_id: PeerId,
     device_id: LocalDeviceId,
     connection: quinn::Connection,
+    #[cfg(feature = "ec_simcommsys")]
+    scs_client: Arc<SCSApi>,
+    #[cfg(feature = "ec_simcommsys")]
+    ldpc_codes: LdpcCodes,
+    metrics: Mutex<KeyMetrics>,
 }
 
 impl Leader {
@@ -44,6 +72,16 @@ impl Leader {
     pub fn connection(&self) -> quinn::Connection {
         self.connection.clone()
     }
+
+    #[cfg(feature = "ec_simcommsys")]
+    pub fn scs_client(&self) -> Arc<SCSApi> {
+        self.scs_client.clone()
+    }
+
+    #[cfg(feature = "ec_simcommsys")]
+    pub fn ldpc_codes(&self) -> LdpcCodes {
+        self.ldpc_codes.clone()
+    }
 }
 
 #[instrument(level="ERROR", skip_all, fields(%peer=peer_id, %device=device_id))]
@@ -53,12 +91,19 @@ pub async fn start_leader(
     peer_id: PeerId,
     device_id: LocalDeviceId,
     new_key: Receiver<Key<Sifted>>,
+    #[cfg(feature = "ec_simcommsys")] scs_client: Arc<SCSApi>,
+    #[cfg(feature = "ec_simcommsys")] ldpc_codes: LdpcCodes,
 ) {
     info!("Starting leader");
     let role = Leader {
         peer_id,
         device_id,
         connection,
+        #[cfg(feature = "ec_simcommsys")]
+        scs_client,
+        #[cfg(feature = "ec_simcommsys")]
+        ldpc_codes,
+        metrics: Mutex::new(KeyMetrics::default()),
     };
     match handle_new_key(role, monitor, new_key).await {
         Ok(()) => info!("Leader shut down gracefully"),
@@ -72,38 +117,88 @@ async fn handle_new_key(
     monitor: Monitor,
     mut new_key: Receiver<Key<Sifted>>,
 ) -> SubsystemResult {
+    let leader = Arc::new(role);
+
+    // Buffer for storing the task handles of each key currently being processed.
+    let mut handles: VecDeque<JoinHandle<()>> = VecDeque::with_capacity(MAX_PARALLEL_KEYS);
+
     loop {
-        let connection = role.connection();
-        tokio::select! {
+        let connection = leader.connection();
+
+        // Ensure we aren't processing more keys than we should.
+        // If we reach the limit, pop off the oldest handle and await it.
+        if handles.len() >= MAX_PARALLEL_KEYS {
+            debug!("Parallel keys limit reached. Awaiting oldest key.");
+            // SAFETY - Checking against `MAX_PARALLEL_KEYS` ensures there's at least one element in the deque.
+            let handle = handles.pop_front().unwrap();
+
+            tokio::select! {
+                _ = monitor.cancelled() => break,
+                _ = connection.closed() => break,
+                res = handle => if let Err(e) = res {
+                    error!("Key processing failed. Error: {e}");
+                }
+            }
+        }
+
+        let key = tokio::select! {
             _ = monitor.cancelled() =>  break,
             _ = connection.closed() => break,
             received = new_key.recv() => {
                 match received {
-                Some(key) => {
-                    let device_id = key.device_id();
-                    if role.device_id != device_id.into() {
-                        error!("Unexepected key received!");
-                    } else {
-                        monitor.run(process_key(role.connection(), key).in_current_span());
-                    };
-                },
-                None => break
+                    Some(key) => key,
+                    None => break
                 }
             }
-        }
+        };
+
+        let device_id = key.device_id();
+        if leader.device_id == device_id.into() {
+            let handle = monitor.run(process_key(leader.clone(), key).in_current_span());
+            handles.push_back(handle);
+        } else {
+            error!("Unexepected key received! Discarding.");
+        };
     }
+
     info!("New key listener shutting down");
     Ok(())
 }
 
+#[cfg(feature = "ec_simcommsys")]
+fn create_simcommsys_stage(
+    client: Arc<SCSApi>,
+    ldpc_codes: LdpcCodes,
+) -> ppaas_core::error::Result<SetupSimCommSys> {
+    SetupSimCommSys::new(ldpc_codes, client)
+}
+
 fn create_pipeline(
     key: Key<Reconciling>,
-) -> Box<impl PostProcessingStep<InitialStage = Reconciling, FinalStage = Secret, Result = ()>> {
-    let pipeline = BEREstimation::new(key, 0.05, 0.95)
-        .pipe(SetupBerLimit::new(0.09))
-        .pipe(SetupCascade::new(4))
-        .pipe(SetupPrivacyAmplification);
-    Box::new(pipeline)
+    #[cfg(feature = "ec_simcommsys")] client: Arc<SCSApi>,
+    #[cfg(feature = "ec_simcommsys")] ldpc_codes: LdpcCodes,
+) -> ppaas_core::error::Result<
+    Box<impl PostProcessingStep<InitialStage = Reconciling, FinalStage = Secret, Result = ()>>,
+> {
+    let pipeline = BEREstimation::new(key, 0.05, 0.95).pipe(SetupBerLimit::new(0.11));
+
+    // TODO Fix SCS base url passing.
+    // Select the error correction stage to use by feature.
+    // If more than one error correction feature is enabled, fail to compile.
+    // If no feature is selected, also fail.
+    // Note: The `not(rust_analyzer)` expression prevents the linter complaining about linting with all features enabled.
+    let ec_stage = cfg_select! {
+        all(not(rust_analyzer), feature = "ec_cascade", feature = "ec_simcommsys") => compile_error!(
+            "More than one error correction feature enabled. Choose one and disable the others."
+        ),
+        feature = "ec_simcommsys" => create_simcommsys_stage(client, ldpc_codes)?,
+        feature = "ec_cascade" => SetupCascade::new(4),
+        _ => compile_error!("No error correction feature enabled. One must be chosen.")
+    };
+
+    let pipeline = pipeline.pipe(ec_stage).pipe(SetupPrivacyAmplification);
+
+    Ok(Box::new(pipeline))
 }
 
 async fn run_step<P>(
@@ -116,6 +211,7 @@ where
     P: PostProcessingStep + 'static,
     <P as PostProcessingStep>::Result: Send,
 {
+    // TODO Look into making `step` async.
     tokio::task::spawn_blocking(move || {
         let r = pipeline.step();
         (pipeline, r)
@@ -125,8 +221,8 @@ where
 }
 
 #[instrument(skip_all, fields(%key_id=key.key_id()))]
-async fn process_key(connection: quinn::Connection, key: Key<Sifted>) {
-    let stream = &mut QuinnStream::connect(connection).await.unwrap();
+async fn process_key(leader: Arc<Leader>, key: Key<Sifted>) {
+    let stream = &mut QuinnStream::connect(leader.connection()).await.unwrap();
     let buff = &mut vec![0; 1024 * 1024];
     {
         let message = RegisterKey(FullKeyId::key_id(&key), key.length());
@@ -157,65 +253,130 @@ async fn process_key(connection: quinn::Connection, key: Key<Sifted>) {
         RegisterReply::LengthMismatch(_) => {}
     }
 
-    info!("Starting post processing");
-    let mut cur_pipeline = create_pipeline(key.verify().start_reconciliation());
-    loop {
-        if let Some((pipeline, next_step)) = run_step(cur_pipeline).await {
-            cur_pipeline = pipeline;
-            match next_step {
-                Ok(PPStep::Result(_)) => {
-                    info!("Finished reconciling");
-                    break;
-                }
-                Ok(PPStep::GetUpdate(request)) => {
-                    if let Err(e) = send_message(stream, &request).await {
-                        warn!("Unable to send request to peer: {:?}", e);
-                        return;
-                    }
-                    let update: FollowerResponse = match read_message(stream, buff).await {
-                        Ok(reply) => reply,
-                        Err(e) => {
-                            warn!("Unable to parse response: {:?}", e);
-                            return;
-                        }
-                    };
-                    if let Err(e) = cur_pipeline.update(update) {
-                        warn!("Error while processing response: {}", e);
-                        return;
-                    }
-                }
-                Ok(PPStep::Abort) => {
-                    info!("Aborting further post processing");
-                    return;
-                }
-                Err(e) => {
-                    warn!("Error doing reconciliation!: {}", e);
-                    return;
-                }
-            }
-        } else {
-            warn!("Error joining tokio task when running step");
+    #[cfg(debug_assertions)]
+    info!(
+        "Starting post processing. Key hash: {:?}",
+        obtain_key_hash(key.get_interior_ref())
+    );
+
+    let cur_pipeline = match create_pipeline(
+        key.verify().start_reconciliation(),
+        #[cfg(feature = "ec_simcommsys")]
+        leader.scs_client(),
+        #[cfg(feature = "ec_simcommsys")]
+        leader.ldpc_codes(),
+    ) {
+        Ok(pipeline) => pipeline,
+        Err(e) => {
+            error!("Failed to construct pipeline. Error: {e}");
             return;
         }
+    };
+
+    let pp_res = perform_post_processing(cur_pipeline, &leader.metrics, stream, buff).await;
+
+    if let Err(e) = save_metrics(leader.metrics.lock().await).await {
+        warn!("Failed to save leader metrics. Error: {e:?}.");
     }
-    if let Ok(key) = cur_pipeline.finalize() {
-        let mut file = std::fs::OpenOptions::new()
-            .append(true)
-            .create(true)
-            .open(format!("{}.csv", key.device_id()))
-            .unwrap();
-        let _ = file.write_all(
-            format!(
-                "{},{}\n",
-                key.key_id(),
-                key.get_interior_ref()
-                    .iter()
-                    .by_vals()
-                    .map(|b| if b { "1" } else { "0" })
-                    .collect::<String>()
-            )
-            .as_bytes(),
-        );
-        info!("Key reconciled");
+
+    let key = match pp_res {
+        Ok(key) => key,
+        Err(e) => {
+            warn!("Post-processing failed. Error: {e:?}");
+            return;
+        }
+    };
+
+    #[cfg(debug_assertions)]
+    debug!(
+        "Saving secret key. Key ID: {}, hash: {:?}",
+        key.key_id(),
+        obtain_key_hash(key.get_interior_ref())
+    );
+
+    if let Err(e) = CsvWriter::new(key.device_id()).write_key(&key) {
+        error!("Failed to save key to CSV. Error: {e:?}");
     }
+
+    info!("Key reconciled");
+}
+
+#[instrument(skip_all)]
+async fn perform_post_processing<PP>(
+    mut cur_pipeline: Box<PP>,
+    metrics: &Mutex<KeyMetrics>,
+    stream: &mut QuinnStream,
+    buff: &mut [u8],
+) -> MainResult<Key<Secret>>
+where
+    PP: PostProcessingStep<InitialStage = Reconciling, FinalStage = Secret, Result = ()> + 'static,
+{
+    metrics.lock().await.total_keys += 1;
+
+    loop {
+        let Some((pipeline, next_step)) = run_step(cur_pipeline).await else {
+            let err_msg = SubsystemError::new("Error joining tokio task when running step");
+            return Err(err_msg.into());
+        };
+
+        cur_pipeline = pipeline;
+        match next_step {
+            Ok(PPStep::Result(_)) => {
+                metrics.lock().await.successful_keys += 1;
+
+                info!("Finished reconciling");
+                break;
+            }
+            Ok(PPStep::GetUpdate(request)) => {
+                #[cfg(debug_assertions)]
+                debug!("Sending request to follower. Request: {request:?}");
+
+                send_message(stream, &request)
+                    .await
+                    .inspect_err(|e| warn!("Unable to send request to peer: {:?}", e))?;
+
+                #[cfg(debug_assertions)]
+                debug!("Done. Waiting for response.");
+
+                let update = read_message(stream, buff)
+                    .await
+                    .inspect_err(|e| warn!("Unable to parse response: {:?}", e))?;
+
+                cur_pipeline
+                    .update(update)
+                    .inspect_err(|e| warn!("Error while processing response: {}", e))?;
+            }
+            Ok(PPStep::Abort) => {
+                metrics.lock().await.aborted_keys += 1;
+
+                let err_msg = SubsystemError::new("Aborting further post-processing");
+                return Err(err_msg.into());
+            }
+            Err(e) => {
+                metrics.lock().await.failed_keys += 1;
+
+                let err_msg =
+                    SubsystemError::new(format!("Error doing reconciliation! Error: {e}"));
+                return Err(err_msg.into());
+            }
+        }
+    }
+
+    let key = cur_pipeline.finalize()?;
+
+    Ok(key)
+}
+
+async fn save_metrics(metrics: MutexGuard<'_, KeyMetrics>) -> MainResult<()> {
+    const LEADER_METRICS_PATH: &str = "leader_metrics.json";
+
+    let mut file = OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .open(LEADER_METRICS_PATH)?;
+
+    serde_json::to_writer_pretty(&mut file, &*metrics)?;
+
+    Ok(())
 }

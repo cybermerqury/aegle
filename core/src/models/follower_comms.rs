@@ -1,0 +1,42 @@
+#[cfg(feature = "ec_simcommsys")]
+use std::collections::HashMap;
+
+use bitvec::vec::BitVec;
+
+use crate::models::Toeplitz;
+
+#[derive(serde::Serialize, serde::Deserialize)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+pub enum FollowerRequests {
+    /// Register an LDPC code of the given ID with SimCommSys
+    Reveal(Vec<usize>),
+    Syndrome(Vec<Vec<usize>>),
+    PrivacyAmplification(Toeplitz),
+    #[cfg(feature = "ec_simcommsys")]
+    SCSRegisterCode(String),
+    #[cfg(feature = "ec_simcommsys")]
+    SCSSyndrome,
+    #[cfg(feature = "ec_simcommsys")]
+    SCSHashCheck,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+pub enum FollowerResponse {
+    Reveal(BitVec),
+    Syndrome(BitVec),
+    PrivacyAmplificationConfirmed(PAReply),
+    #[cfg(feature = "ec_simcommsys")]
+    SCSRegisterCode(bool),
+    #[cfg(feature = "ec_simcommsys")]
+    SCSSyndrome(Option<HashMap<usize, BitVec>>),
+    // TODO - Replace with more secure hash function.
+    #[cfg(feature = "ec_simcommsys")]
+    SCSHashCheck(Vec<u8>),
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
+pub enum PAReply {
+    Confirmed,
+    Error,
+}

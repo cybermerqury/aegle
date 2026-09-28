@@ -7,11 +7,50 @@ root_cert        = "./certificates/root.pem"
 module_cert      = "./certificates/module.pem"
 logfile          = "app_alice.json"
 logfile_level    = "INFO"
-stdout_level     = "INFO"
+stdout_level     = "DEBUG"
 
 [[peers]]
 uuid = "00000000-0000-0000-0000-00000000000b"
 addr = '127.0.0.1:61001'
+
 [[peers.qkd]]
 local = "00000000-0000-0000-0000-0000000000ab"
 remote = "00000000-0000-0000-0000-0000000000ba"
+
+[simcommsys]
+base_url = "http://localhost:8080"
+
+[[simcommsys.ldpc_codes]]
+id = "peg-10000-080-bsc"
+min_ber = 0.0
+max_ber = 0.025
+block_length = 10000
+matrix = { file = "./ldpc-codes-alist/peg-10000-080-bsc.cfg" }
+
+[[simcommsys.ldpc_codes]]
+id = "peg-10000-070-bsc"
+min_ber = 0.025
+max_ber = 0.0425
+block_length = 10000
+matrix = { file = "./ldpc-codes-alist/peg-10000-070-bsc.cfg" }
+
+[[simcommsys.ldpc_codes]]
+id = "peg-10000-060-bsc"
+min_ber = 0.0425
+max_ber = 0.065
+block_length = 10000
+matrix = { file = "./ldpc-codes-alist/peg-10000-060-bsc.cfg" }
+
+[[simcommsys.ldpc_codes]]
+id = "peg-10000-050-bsc"
+min_ber = 0.065
+max_ber = 0.09
+block_length = 10000
+matrix = { file = "./ldpc-codes-alist/peg-10000-050-bsc.cfg" }
+
+[[simcommsys.ldpc_codes]]
+id = "peg-10000-040-bsc"
+min_ber = 0.09
+max_ber = 1.0
+block_length = 10000
+matrix = { file = "./ldpc-codes-alist/peg-10000-040-bsc.cfg" }
