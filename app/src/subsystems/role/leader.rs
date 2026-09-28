@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 // SPDX-FileCopyrightText:  © 2024 - 2026 Merqury Cybersecurity Ltd <info@merqury.eu>
 
+use serde::Serialize;
 use std::collections::VecDeque;
 use std::sync::Arc;
+use tokio::fs::OpenOptions;
+use tokio::io::AsyncWriteExt;
+use tokio::sync::Mutex;
 use tokio::{sync::mpsc::Receiver, task::JoinHandle};
 use tracing::{debug, error, info, instrument, warn, Instrument};
 
@@ -38,6 +42,14 @@ use ec_simcommsys::{client::SCSApi, config::LdpcCodes, SetupSimCommSys};
 /// Decides how many keys can be processed in parallel at any one time. Must be greater than 0.
 const MAX_PARALLEL_KEYS: usize = 1;
 
+#[derive(Serialize, Clone, Copy, Default)]
+struct KeyMetrics {
+    pub total_keys: u64,
+    pub successful_keys: u64,
+    pub aborted_keys: u64,
+    pub failed_keys: u64,
+}
+
 struct Leader {
     peer_id: PeerId,
     device_id: LocalDeviceId,
@@ -46,6 +58,7 @@ struct Leader {
     scs_client: Arc<SCSApi>,
     #[cfg(feature = "ec_simcommsys")]
     ldpc_codes: LdpcCodes,
+    metrics: Mutex<KeyMetrics>,
 }
 
 impl Leader {
@@ -91,6 +104,7 @@ pub async fn start_leader(
         scs_client,
         #[cfg(feature = "ec_simcommsys")]
         ldpc_codes,
+        metrics: Mutex::new(KeyMetrics::default()),
     };
     match handle_new_key(role, monitor, new_key).await {
         Ok(()) => info!("Leader shut down gracefully"),
@@ -260,7 +274,13 @@ async fn process_key(leader: Arc<Leader>, key: Key<Sifted>) {
         }
     };
 
-    let key = match perform_post_processing(cur_pipeline, stream, buff).await {
+    let pp_res = perform_post_processing(cur_pipeline, &leader.metrics, stream, buff).await;
+
+    if let Err(e) = save_metrics(*leader.metrics.lock().await).await {
+        warn!("Failed to save leader metrics. Error: {e:?}.");
+    }
+
+    let key = match pp_res {
         Ok(key) => key,
         Err(e) => {
             warn!("Post-processing failed. Error: {e:?}");
@@ -285,12 +305,15 @@ async fn process_key(leader: Arc<Leader>, key: Key<Sifted>) {
 #[instrument(skip_all)]
 async fn perform_post_processing<PP>(
     mut cur_pipeline: Box<PP>,
+    metrics: &Mutex<KeyMetrics>,
     stream: &mut QuinnStream,
     buff: &mut [u8],
 ) -> MainResult<Key<Secret>>
 where
     PP: PostProcessingStep<InitialStage = Reconciling, FinalStage = Secret, Result = ()> + 'static,
 {
+    metrics.lock().await.total_keys += 1;
+
     loop {
         let Some((pipeline, next_step)) = run_step(cur_pipeline).await else {
             let err_msg = SubsystemError::new("Error joining tokio task when running step");
@@ -323,10 +346,14 @@ where
                     .inspect_err(|e| warn!("Error while processing response: {}", e))?;
             }
             Ok(PPStep::Abort) => {
+                metrics.lock().await.aborted_keys += 1;
+
                 let err_msg = SubsystemError::new("Aborting further post-processing");
                 return Err(err_msg.into());
             }
             Err(e) => {
+                metrics.lock().await.failed_keys += 1;
+
                 let err_msg =
                     SubsystemError::new(format!("Error doing reconciliation! Error: {e}"));
                 return Err(err_msg.into());
@@ -337,4 +364,20 @@ where
     let key = cur_pipeline.finalize()?;
 
     Ok(key)
+}
+
+async fn save_metrics(metrics: KeyMetrics) -> MainResult<()> {
+    const LEADER_METRICS_PATH: &str = "leader_metrics.json";
+
+    let mut file = OpenOptions::new()
+        .create(true)
+        .write(true)
+        .open(LEADER_METRICS_PATH)
+        .await?;
+
+    let metrics_str = serde_json::to_string_pretty(&metrics)?;
+
+    file.write_all(metrics_str.as_bytes()).await?;
+
+    Ok(())
 }
