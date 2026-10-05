@@ -6,6 +6,7 @@ use std::collections::VecDeque;
 use std::fs::OpenOptions;
 use std::sync::Arc;
 use tokio::sync::{Mutex, MutexGuard};
+use tokio::time::Instant;
 use tokio::{sync::mpsc::Receiver, task::JoinHandle};
 use tracing::{debug, error, info, instrument, warn, Instrument};
 
@@ -273,7 +274,10 @@ async fn process_key(leader: Arc<Leader>, key: Key<Sifted>) {
         }
     };
 
+    let pp_start = Instant::now();
     let pp_res = perform_post_processing(cur_pipeline, &leader.metrics, stream, buff).await;
+
+    let pp_duration = pp_start.elapsed();
 
     if let Err(e) = save_metrics(leader.metrics.lock().await).await {
         warn!("Failed to save leader metrics. Error: {e:?}.");
@@ -294,7 +298,7 @@ async fn process_key(leader: Arc<Leader>, key: Key<Sifted>) {
         obtain_key_hash(key.get_interior_ref())
     );
 
-    if let Err(e) = CsvWriter::new(key.device_id()).write_key(&key) {
+    if let Err(e) = CsvWriter::new(key.device_id()).write_key(&key, pp_duration) {
         error!("Failed to save key to CSV. Error: {e:?}");
     }
 

@@ -6,7 +6,10 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::{mpsc, oneshot};
+use tokio::{
+    sync::{mpsc, oneshot},
+    time::Instant,
+};
 use tracing::{debug, error, info, instrument, warn, Instrument, Level};
 
 #[cfg(feature = "ec_simcommsys")]
@@ -301,6 +304,8 @@ impl KeyProcessor {
 
         let key = key.verify().start_reconciliation();
 
+        let pp_start = Instant::now();
+
         let secret_key = match self.construct_secret_key(key).await {
             Ok(Some(secret_key)) => {
                 let response = FollowerResponse::PrivacyAmplificationConfirmed(PAReply::Confirmed);
@@ -325,6 +330,8 @@ impl KeyProcessor {
             }
         };
 
+        let pp_duration = pp_start.elapsed();
+
         #[cfg(debug_assertions)]
         debug!(
             "Saving secret key. Key ID: {}, hash: {:?}",
@@ -332,7 +339,7 @@ impl KeyProcessor {
             obtain_key_hash(secret_key.get_interior_ref())
         );
 
-        if let Err(e) = CsvWriter::new(secret_key.device_id()).write_key(&secret_key) {
+        if let Err(e) = CsvWriter::new(secret_key.device_id()).write_key(&secret_key, pp_duration) {
             error!("Failed to save key to CSV. Error: {e:?}");
         }
 

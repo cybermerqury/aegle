@@ -2,6 +2,7 @@ use std::{
     fs::{File, OpenOptions},
     io::{BufWriter, Write},
     path::Path,
+    time::Duration,
 };
 
 use ppaas_core::{
@@ -22,7 +23,7 @@ impl CsvWriter {
         }
     }
 
-    pub fn write_key(&self, key: &Key<Secret>) -> MainResult<()> {
+    pub fn write_key(&self, key: &Key<Secret>, pp_duration: Duration) -> MainResult<()> {
         let key_id = key.key_id();
         let value = key
             .get_interior_ref()
@@ -31,13 +32,13 @@ impl CsvWriter {
             .map(|b| if b { "1" } else { "0" })
             .collect::<String>();
 
-        self.write_row(key_id, value)
+        self.write_row(key_id, pp_duration, value)
     }
 
-    fn write_row(&self, key_id: KeyId, value: String) -> MainResult<()> {
+    fn write_row(&self, key_id: KeyId, duration: Duration, value: String) -> MainResult<()> {
         let mut file = self.get_file()?;
 
-        write!(file, "{},{}\n", key_id, value)?;
+        write!(file, "{},{},{}\n", key_id, duration.as_millis(), value)?;
 
         Ok(())
     }
@@ -49,7 +50,7 @@ impl CsvWriter {
             let file = OpenOptions::new().create(true).write(true).open(path)?;
             let mut writer = BufWriter::new(file);
 
-            write!(writer, "key_id,value\n")?;
+            write!(writer, "key_id,duration_millis,value\n")?;
         }
 
         Ok(OpenOptions::new().append(true).open(path)?)
