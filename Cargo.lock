@@ -10,7 +10,7 @@ checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 
 [[package]]
 name = "aegle"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "bincode",
  "bitvec",
@@ -222,7 +222,7 @@ checksum = "2af50177e190e07a26ab74f8b1efbfe2ef87da2116221318cb1c2e82baf7de06"
 
 [[package]]
 name = "benchmark"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "bitvec",
  "clap",
@@ -713,7 +713,7 @@ dependencies = [
 
 [[package]]
 name = "ec_binary_ldpc"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "bitvec",
  "ppaas_core",
@@ -721,7 +721,7 @@ dependencies = [
 
 [[package]]
 name = "ec_cascade"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "bitvec",
  "ppaas_core",
@@ -730,7 +730,7 @@ dependencies = [
 
 [[package]]
 name = "ec_nonbinary_ldpc"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "ndarray",
  "rand 0.8.5",
@@ -739,7 +739,7 @@ dependencies = [
 
 [[package]]
 name = "ec_simcommsys"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "bitvec",
  "ppaas_core",
@@ -760,7 +760,7 @@ checksum = "48c757948c5ede0e46177b7add2e67155f70e33c07fea8284df6576da70b3719"
 
 [[package]]
 name = "emulator"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "bincode",
  "bitvec",
@@ -1808,7 +1808,7 @@ checksum = "439ee305def115ba05938db6eb1644ff94165c5ab5e9420d1c1bcedbba909391"
 
 [[package]]
 name = "ppaas_core"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "bitvec",
  "rand 0.8.5",
