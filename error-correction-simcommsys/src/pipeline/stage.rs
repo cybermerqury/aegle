@@ -194,7 +194,7 @@ impl PostProcessingStep for SimCommSys {
                 Ok(PPStep::GetUpdate(FollowerRequests::SCSHashCheck))
             }
             FollowerPendingStep::HashCheck => {
-                info!("Performing final key hash-check with follower.");
+                debug!("Performing final key hash-check with follower.");
 
                 let follower_hash = self
                     .follower_hash
@@ -213,7 +213,9 @@ impl PostProcessingStep for SimCommSys {
 
                     Ok(PPStep::Result(()))
                 } else {
-                    Err(PPError::new("Follower key hash does not match our hash"))
+                    warn!("Follower key hash does not match our hash. Aborting.");
+
+                    Ok(PPStep::Abort)
                 }
             }
         }

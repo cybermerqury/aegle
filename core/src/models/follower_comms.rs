@@ -8,11 +8,11 @@ use crate::models::Toeplitz;
 #[derive(serde::Serialize, serde::Deserialize)]
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub enum FollowerRequests {
-    /// Register an LDPC code of the given ID with SimCommSys
     Reveal(Vec<usize>),
     Syndrome(Vec<Vec<usize>>),
     PrivacyAmplification(Toeplitz),
     #[cfg(feature = "ec_simcommsys")]
+    /// Register an LDPC code of the given ID with SimCommSys
     SCSRegisterCode(String),
     #[cfg(feature = "ec_simcommsys")]
     SCSSyndrome,

@@ -335,20 +335,32 @@ where
                 #[cfg(debug_assertions)]
                 debug!("Sending request to follower. Request: {request:?}");
 
-                send_message(stream, &request)
-                    .await
-                    .inspect_err(|e| warn!("Unable to send request to peer: {:?}", e))?;
+                if let Err(e) = send_message(stream, &request).await {
+                    warn!("Unable to send request to peer: {:?}", e);
+                    metrics.lock().await.failed_keys += 1;
+
+                    return Err(e);
+                }
 
                 #[cfg(debug_assertions)]
                 debug!("Done. Waiting for response.");
 
-                let update = read_message(stream, buff)
-                    .await
-                    .inspect_err(|e| warn!("Unable to parse response: {:?}", e))?;
+                let update = match read_message(stream, buff).await {
+                    Ok(update) => update,
+                    Err(e) => {
+                        warn!("Unable to parse response: {:?}", e);
+                        metrics.lock().await.failed_keys += 1;
 
-                cur_pipeline
-                    .update(update)
-                    .inspect_err(|e| warn!("Error while processing response: {}", e))?;
+                        return Err(e);
+                    }
+                };
+
+                if let Err(e) = cur_pipeline.update(update) {
+                    warn!("Error while processing response: {}", e);
+                    metrics.lock().await.failed_keys += 1;
+
+                    return Err(e.into());
+                }
             }
             Ok(PPStep::Abort) => {
                 metrics.lock().await.aborted_keys += 1;
@@ -366,7 +378,13 @@ where
         }
     }
 
-    let key = cur_pipeline.finalize()?;
+    let key = match cur_pipeline.finalize() {
+        Ok(key) => key,
+        Err(e) => {
+            warn!("Failed to finalize pipeline-resultant key. Error: {e}");
+            return Err(e.into());
+        }
+    };
 
     Ok(key)
 }

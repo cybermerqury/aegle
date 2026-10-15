@@ -496,6 +496,7 @@ impl KeyProcessor {
                             .calculate_syndrome(&code.id, codeword)
                             .inspect_err(|e| warn!("Syndrome calculation failed. Error: {e}"))?;
 
+                        #[cfg(debug_assertions)]
                         debug!("Syndrome for codeword {codeword}: {syndrome}");
 
                         leaked_bits += syndrome.len();
