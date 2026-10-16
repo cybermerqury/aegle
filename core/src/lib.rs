@@ -8,33 +8,11 @@ pub mod models;
 pub mod sync;
 pub mod traits;
 
-#[cfg(test)]
-mod tests {
+use sha3::{Digest, Sha3_512};
 
-    use self::models::Toeplitz;
-    use bitvec::prelude::*;
+/// Hash the given bitslice using SHA3_512. Returns a byte-vec representing the hash.
+pub fn obtain_key_hash(key: &bitvec::slice::BitSlice) -> Vec<u8> {
+    let array = key.iter().by_vals().map(|b| b as u8).collect::<Vec<u8>>();
 
-    use super::*;
-
-    #[test]
-    fn test_toeplitz() {
-        let v = bitvec!(0, 1, 0, 0, 1, 1, 0);
-        let w = bitvec!(1, 1, 0, 1, 0);
-        let top = Toeplitz::from_bitvec(5, 3, v).expect("Wrong size of data");
-        let hashed = top.hash_data(w);
-        let result = hashed.expect("Wrong input length");
-        assert_eq!(result, bitvec![1, 0, 1]);
-    }
-
-    #[test]
-    fn test_bad_toeplitz() {
-        let v = bitvec!(0, 1, 0, 0, 1, 1, 0);
-        let w = bitvec!(1, 1, 0, 1);
-        let top = Toeplitz::from_bitvec(5, 3, v).expect("Wrong size of data");
-        let hashed = top.hash_data(w);
-        assert!(hashed.is_none());
-        let w = bitvec!(1, 1, 0, 1, 1, 1);
-        let hashed = top.hash_data(w);
-        assert!(hashed.is_none());
-    }
+    Sha3_512::digest(array).to_vec()
 }

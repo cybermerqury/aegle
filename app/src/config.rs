@@ -20,7 +20,7 @@ use tracing_appender::{
 };
 use tracing_subscriber::EnvFilter;
 
-use core::fs::certificate_handling::load_key_and_certificate;
+use ppaas_core::fs::certificate_handling::load_key_and_certificate;
 
 use crate::errors::MainResult;
 use crate::models::{OwnID, PeerInfo};
@@ -56,6 +56,8 @@ pub struct RotatingLog {
 pub struct ModuleConfig {
     pub module: Module,
     pub peers: Vec<PeerInfo>,
+    #[cfg(feature = "ec_simcommsys")]
+    pub simcommsys: ec_simcommsys::config::SimCommSysConfig,
 }
 
 impl ModuleConfig {

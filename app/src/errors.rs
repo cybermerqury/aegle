@@ -10,6 +10,12 @@ pub type MainResult<T> = Result<T, Box<dyn MainError>>;
 #[derive(Debug)]
 pub struct SubsystemError(pub String);
 
+impl SubsystemError {
+    pub fn new(msg: impl Into<String>) -> Self {
+        Self(msg.into())
+    }
+}
+
 impl Display for SubsystemError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "Error in a subsystem: {}", self.0)

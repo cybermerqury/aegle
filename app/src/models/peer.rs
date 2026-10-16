@@ -4,7 +4,7 @@
 use serde::Deserialize;
 use std::net::SocketAddr;
 
-use core::models::DeviceId;
+use ppaas_core::models::DeviceId;
 
 use super::PeerId;
 

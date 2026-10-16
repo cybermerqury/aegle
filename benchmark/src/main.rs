@@ -11,12 +11,13 @@ use std::time::Duration;
 
 use bitvec::vec::BitVec;
 use clap::Parser;
-use core::key_state_machine::{Key, Reconciled, Reconciling};
-use core::models::{DeviceId, KeyId};
-use core::traits::{
-    FollowerRequests, FollowerResponse, PPStep, PostProcessingSetup, PostProcessingStep,
-};
 use error_correction::cascade::SetupCascade;
+use ppaas_core::key_state_machine::{Key, Reconciled, Reconciling};
+use ppaas_core::models::{DeviceId, KeyId};
+use ppaas_core::{
+    models::follower_comms::{FollowerRequests, FollowerResponse},
+    traits::{PPStep, PostProcessingSetup, PostProcessingStep},
+};
 
 fn create_key(len: usize, error_rate: f64) -> (Key<Reconciling>, Key<Reconciling>) {
     let mut b1 = BitVec::new();
@@ -116,7 +117,7 @@ fn error_count(key1: &BitVec, key2: &BitVec) -> usize {
 fn run_iteration(channel_error: f64, frame_length: usize, iter_num: usize) -> Option<ECResult> {
     let (alice, bob) = create_key(frame_length, channel_error);
     let errors_before = error_count(&alice.get_interior(), &bob.get_interior());
-    let cascade = SetupCascade::new(4).setup(alice, channel_error);
+    let cascade = SetupCascade::new(4).setup(alice, channel_error).unwrap();
     let start = std::time::Instant::now();
     run_ec(cascade, &bob.get_interior()).map(|reconciled| ECResult {
         iter: iter_num,
