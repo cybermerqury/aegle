@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 // SPDX-FileCopyrightText:  © 2024 - 2026 Merqury Cybersecurity Ltd <info@merqury.eu>
 
-// SPDX-FileCopyrightText: © 2024 Merqury Cybersecurity Ltd <info@merqury.eu>
-use bitvec::vec::BitVec;
+use std::fmt::Display;
 
-use crate::{key_state_machine::Key, models::Toeplitz};
+use tracing::warn;
+
+use crate::{
+    key_state_machine::Key,
+    models::follower_comms::{FollowerRequests, FollowerResponse},
+};
 
 pub enum PPStep<R, U> {
     GetUpdate(U),
@@ -59,7 +63,13 @@ where
         let op = std::mem::replace(&mut self.0, State::NoOp);
         match op {
             State::Setup(u) => {
-                self.0 = State::Step(u.setup(key, args));
+                let worker = u.setup(key, args).map_err(|e| {
+                    warn!("Error during pipeline stage setup. Error: {e}");
+                    PPError("Pipeline stage setup failed.")
+                })?;
+
+                self.0 = State::Step(worker);
+
                 Ok(())
             }
             State::Step(_) => Err(PPError::new("Already set up")),
@@ -72,7 +82,7 @@ impl<First, Second> Pipe<First, MutState<Second>>
 where
     First: PostProcessingStep,
     Second: PostProcessingSetup,
-    Second::SetupArgs: From<First::Result>,
+    First::Result: Into<Second::SetupArgs>,
 {
     fn new(first: First, second: Second) -> Self {
         Self {
@@ -86,7 +96,7 @@ impl<First, Second> PostProcessingStep for Pipe<First, MutState<Second>>
 where
     First: PostProcessingStep,
     Second: PostProcessingSetup<InitialStage = First::FinalStage>,
-    Second::SetupArgs: From<First::Result>,
+    First::Result: Into<Second::SetupArgs>,
 {
     type Result = <Second::Worker as PostProcessingStep>::Result;
     type FinalStage = <Second::Worker as PostProcessingStep>::FinalStage;
@@ -126,31 +136,17 @@ where
     }
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Debug)]
-pub enum FollowerRequests {
-    Reveal(Vec<usize>),
-    Syndrome(Vec<Vec<usize>>),
-    PrivacyAmplification(Toeplitz),
-}
-
-#[derive(serde::Serialize, serde::Deserialize)]
-pub enum PAReply {
-    Confirmed,
-    Error,
-}
-
-#[derive(serde::Serialize, serde::Deserialize)]
-pub enum FollowerResponse {
-    Reveal(BitVec),
-    Syndrome(BitVec),
-    PrivacyAmplificationConfirmed(PAReply),
-}
-
 pub trait PostProcessingSetup: Send {
     type InitialStage;
     type Worker: PostProcessingStep<InitialStage = Self::InitialStage>;
     type SetupArgs;
-    fn setup(self, key: Key<Self::InitialStage>, args: Self::SetupArgs) -> Self::Worker;
+    type SetupErr: Display;
+
+    fn setup(
+        self,
+        key: Key<Self::InitialStage>,
+        args: Self::SetupArgs,
+    ) -> Result<Self::Worker, Self::SetupErr>;
 }
 
 pub trait PostProcessingStep: Send {
@@ -172,7 +168,7 @@ pub trait PostProcessingStep: Send {
     where
         Self: Sized,
         T: PostProcessingSetup<InitialStage = Self::FinalStage>,
-        T::SetupArgs: From<Self::Result>,
+        Self::Result: Into<T::SetupArgs>,
     {
         Pipe::new(self, other)
     }

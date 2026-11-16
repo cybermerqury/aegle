@@ -1,17 +1,18 @@
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 // SPDX-FileCopyrightText:  © 2024 - 2026 Merqury Cybersecurity Ltd <info@merqury.eu>
 
-use std::f64;
 use std::ops::Div;
+use std::{convert::Infallible, f64};
 
 use statrs::distribution::{ContinuousCDF, Normal};
 
-use core::key_state_machine::{Key, Reconciling};
+use ppaas_core::key_state_machine::{Key, Reconciling};
 use tracing::info;
 
 use crate::errors::MainResult;
-use core::traits::{
-    FollowerRequests, FollowerResponse, PPError, PPStep, PostProcessingSetup, PostProcessingStep,
+use ppaas_core::{
+    models::follower_comms::{FollowerRequests, FollowerResponse},
+    traits::{PPError, PPStep, PostProcessingSetup, PostProcessingStep},
 };
 
 fn calculate_sample_size(
@@ -149,13 +150,18 @@ impl PostProcessingSetup for SetupBerLimit {
     type InitialStage = Reconciling;
     type Worker = BERLimit;
     type SetupArgs = f64;
+    type SetupErr = Infallible;
 
-    fn setup(self, key: Key<Self::InitialStage>, args: Self::SetupArgs) -> Self::Worker {
-        Self::Worker {
+    fn setup(
+        self,
+        key: Key<Self::InitialStage>,
+        args: Self::SetupArgs,
+    ) -> Result<Self::Worker, Self::SetupErr> {
+        Ok(Self::Worker {
             key,
             max_ber: self.max_ber,
             current_ber: args,
-        }
+        })
     }
 }
 
@@ -186,8 +192,8 @@ mod tests {
     use bitvec::vec::BitVec;
     use rand::Rng;
 
-    use core::key_state_machine::{Key, Reconciling};
-    use core::models::{DeviceId, KeyId};
+    use ppaas_core::key_state_machine::{Key, Reconciling};
+    use ppaas_core::models::{DeviceId, KeyId};
 
     use super::*;
 

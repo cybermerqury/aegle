@@ -43,13 +43,13 @@ This setup has been tested with `rustc` version `v1.93.0`.
 3. Launch Aegle for Alice's side by running
 
    ```shell
-   make run_agele_alice
+   make run_aegle_alice
    ```
 
 4. Launch Aegle for Bob's side by running
 
    ```shell
-   make run_agele_bob
+   make run_aegle_bob
    ```
 
 The emulator will start pushing keys to the Alice and Bob Aegle instances.

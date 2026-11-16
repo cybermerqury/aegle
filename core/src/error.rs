@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 // SPDX-FileCopyrightText:  © 2024 - 2026 Merqury Cybersecurity Ltd <info@merqury.eu>
 
+pub mod sparse_matrix;
+
 use serde::{Deserialize, Serialize};
 use std::env::VarError;
 use std::fmt;
@@ -66,7 +68,7 @@ impl fmt::Display for ErrorKind {
             Self::Validation => "Validation",
         };
 
-        write!(f, "{}", str_value)
+        f.write_str(str_value)
     }
 }
 
@@ -77,8 +79,11 @@ pub struct Error {
 }
 
 impl Error {
-    pub fn new(error_kind: ErrorKind, msg: String) -> Self {
-        Self { error_kind, msg }
+    pub fn new(error_kind: ErrorKind, msg: impl Into<String>) -> Self {
+        Self {
+            error_kind,
+            msg: msg.into(),
+        }
     }
 
     pub fn kind(&self) -> ErrorKind {
@@ -151,6 +156,27 @@ impl<T> From<std::sync::PoisonError<T>> for Error {
         Error {
             error_kind: ErrorKind::PoisonError,
             msg: format!("Description: PoisonError - '{}'", e),
+        }
+    }
+}
+
+// ErrorKind::Network
+#[cfg(feature = "reqwest")]
+impl From<reqwest::Error> for Error {
+    fn from(e: reqwest::Error) -> Self {
+        Error {
+            error_kind: ErrorKind::Network,
+            msg: format!("Description: Network - Reqwest HTTP error '{}'", e),
+        }
+    }
+}
+
+#[cfg(feature = "ureq")]
+impl From<ureq::Error> for Error {
+    fn from(e: ureq::Error) -> Self {
+        Error {
+            error_kind: ErrorKind::Network,
+            msg: format!("Description: Network - Ureq HTTP error '{}'", e),
         }
     }
 }

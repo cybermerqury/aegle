@@ -14,9 +14,9 @@ use std::str::FromStr;
 use tracing::{debug, error, info};
 use tracing_subscriber::{prelude::*, EnvFilter};
 
-use core::spawn_subsystem;
-use core::sync::tasks::TaskManager;
 use emulator::handle_link;
+use ppaas_core::spawn_subsystem;
+use ppaas_core::sync::tasks::TaskManager;
 
 fn load_config(filename: &Path) -> EmulatorResult<Config> {
     debug!("loading config {}", filename.display());

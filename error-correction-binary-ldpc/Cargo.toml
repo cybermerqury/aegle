@@ -1,12 +1,9 @@
 [package]
 name    = "ec_binary_ldpc"
-version = "1.0.0"
+version = "1.1.0"
 edition = "2021"
 license = "PolyForm-Noncommercial-1.0.0"
 
 [dependencies]
 bitvec = { workspace = true }
-core = { workspace = true }
-
-[dev-dependencies]
-tempfile = { workspace = true }
+ppaas_core = { workspace = true }

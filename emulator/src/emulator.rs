@@ -13,7 +13,7 @@ use std::time::Duration;
 use tracing::{info, instrument};
 use uuid::Uuid;
 
-use core::sync::tasks::Monitor;
+use ppaas_core::sync::tasks::Monitor;
 
 use crate::config::{self, Link, Module};
 use crate::errors::{EmulatorResult, ErrorMessage, SubsystemResult};
